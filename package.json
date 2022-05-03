@@ -3,6 +3,7 @@
   "version": "9.0.0-alpha.0",
   "description": "Offline p2p mapping library",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "lint": "standard",
     "test": "brittle tests/*.js",
@@ -24,6 +25,11 @@
   "homepage": "https://github.com/digidem/mapeo-core#readme",
   "devDependencies": {
     "brittle": "^2.3.1",
-    "dependency-check": "^4.1.0"
+    "dependency-check": "^4.1.0",
+    "random-access-memory": "^4.1.0"
+  },
+  "dependencies": {
+    "@mapeo/crypto": "github:digidem/mapeo-crypto",
+    "corestore": "^6.0.1-alpha.17"
   }
 }
