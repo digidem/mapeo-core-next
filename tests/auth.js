@@ -17,7 +17,8 @@ function createAuthstore () {
 
 	const authstore = new Authstore({
 		store,
-		keyPair: identityKeyPair
+		keyPair: identityKeyPair,
+		capabilities: ['none', 'member', 'admin'] // TODO: it seems there could be a different way of modeling these capabilities rather than just an array
 	})
 
 	return {
@@ -67,31 +68,69 @@ test('auth', async (t) => {
 	t.ok(admin.authstore.cores.size === 2)
 	t.ok(member.authstore.cores.size === 2)
 
-	// assign capabilities to member
-	const capabilitiesCore = admin.authstore.get({
-		keyPair: admin.identityKeyPair,
-		valueEncoding: 'json'
+	await admin.authstore.append({
+		identityPublicKey: admin.identityKeyPair.publicKey.toString('hex'),
+		capability: 'admin'
 	})
 
-	await capabilitiesCore.ready()
-
-	await capabilitiesCore.append({
-		capability: 'admin',
-		identityPublicKey: admin.identityKeyPair.publicKey.toString('hex')
+	await admin.authstore.append({
+		identityPublicKey: member.identityKeyPair.publicKey.toString('hex'),
+		capability: 'member'
 	})
 
-	await capabilitiesCore.append({
-		capability: 'member',
-		identityPublicKey: member.identityKeyPair.publicKey.toString('hex')
+	await admin.authstore.append({
+		identityPublicKey: member.identityKeyPair.publicKey.toString('hex'),
+		capability: 'none'
 	})
 
-  // see if capabilities statements exist
-	const capabilities = await admin.authstore.capabilities()
-	t.ok(capabilities.length === 4)
+	// admin should have admin capability
+	{
+		const access = await admin.authstore.hasCapability({
+			identityPublicKey: admin.identityKeyPair.publicKey.toString('hex'),
+			capability: 'admin'
+		})
 
-	// test isMember and isAdmin on both authstores for both users
-	t.ok(await admin.authstore.isMember(member.identityKeyPair.publicKey.toString('hex')))
-	t.not(await admin.authstore.isAdmin(member.identityKeyPair.publicKey.toString('hex')))
-	t.not(await member.authstore.isMember(admin.identityKeyPair.publicKey.toString('hex'))) // TODO: maybe this should actually be true
-	t.ok(await member.authstore.isAdmin(admin.identityKeyPair.publicKey.toString('hex')))
+		t.ok(access === true)
+	}
+
+	// admin should have member capability
+	{
+		const access = await admin.authstore.hasCapability({
+			identityPublicKey: admin.identityKeyPair.publicKey.toString('hex'),
+			capability: 'member'
+		})
+
+		t.ok(access === true)
+	}
+
+	// member should not have admin capability (they were banned)
+	{
+		const access = await admin.authstore.hasCapability({
+			identityPublicKey: member.identityKeyPair.publicKey.toString('hex'),
+			capability: 'admin'
+		})
+
+		t.ok(access === false)
+	}
+
+	// member should not have member capability (they were banned)
+	{
+		const access = await admin.authstore.hasCapability({
+			identityPublicKey: member.identityKeyPair.publicKey.toString('hex'),
+			capability: 'member'
+		})
+
+		t.ok(access === false)
+	}
+
+	// check if member is banned (capability of none)
+	// TODO: it seems there could be a different way of modeling these capabilities rather than just an array
+	{
+		const isBanned = await admin.authstore.hasCapability({
+			identityPublicKey: member.identityKeyPair.publicKey.toString('hex'),
+			capability: 'none'
+		})
+
+		t.ok(isBanned === true)
+	}
 })
