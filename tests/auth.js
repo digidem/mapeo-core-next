@@ -30,7 +30,24 @@ function createAuthstore () {
 	}
 }
 
-test('auth', async (t) => {
+// test('use sign/verify auth functions', async (t) => {
+// 	const admin = createAuthstore()
+// 	const member = createAuthstore()
+
+// 	await admin.authstore.ready()
+// 	await member.authstore.ready()
+
+// 	const adminStream = admin.authstore.replicate(true, { live: true })
+// 	const memberStream = member.authstore.replicate(false, { live: true })
+
+// 	adminStream.pipe(memberStream).pipe(adminStream)	
+
+// 	const adminCore = await admin.authstore.getOwnershipStatement()
+// 	const memberCore = 
+// })
+
+
+test('check if user has capabilities', async (t) => {
 	const admin = createAuthstore()
 	const member = createAuthstore()
 
@@ -41,6 +58,14 @@ test('auth', async (t) => {
 	const memberStream = member.authstore.replicate(false, { live: true })
 
 	adminStream.pipe(memberStream).pipe(adminStream)	
+
+	adminStream.on('error', (error) => {
+		console.error('adminStream error', error)
+	})
+
+	memberStream.on('error', (error) => {
+		console.error('memberStream error', error)
+	})
 
 	// Test that ownership statements have the right public keys
 	const adminOwnershipStatement = await admin.authstore.getOwnershipStatement()
