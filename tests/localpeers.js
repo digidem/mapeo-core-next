@@ -90,6 +90,9 @@ test('mdns peer discovery: connect two peers', async (t) => {
 		port: await getPort(),
 	})
 
+	discover1.start()
+	discover2.start()
+
 	let count = 0
 	discover1.on('connection', (connection, peer) => {
 		t.ok(peer.topic === key)

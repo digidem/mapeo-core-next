@@ -1,33 +1,40 @@
 import getPort from 'get-port'
-import { createCoreKeyPair, createIdentityKeys } from '../../tests/helpers/index.js'
+import createTestnet from '@hyperswarm/testnet'
 
-import { MdnsPeerDiscovery } from '../../lib/localpeers.js'
+import { createCoreKeyPair, createIdentityKeys } from '../../tests/helpers/index.js'
+import { Discovery } from '../../lib/discovery.js'
+
+const testnet = await createTestnet(10)
+const bootstrap = testnet.bootstrap
 
 let key = process.argv[2]
 
 const keyPair = createCoreKeyPair('mdns-peer-discovery')
-const topic = key ? key : keyPair.publicKey.toString('hex')
+const topic = key ? Buffer.from(key, 'hex') : keyPair.publicKey
 
 const identity = createIdentityKeys()
 const identityPublicKey = identity.identityKeyPair.publicKey.toString('hex')
 
-const discover = new MdnsPeerDiscovery({
-	name: 'mapeo',
+const discover = new Discovery({
 	topic,
 	identityKeyPair: identity.identityKeyPair,
 	port: await getPort(),
+	mdns: false,
+	// dht: { bootstrap }
 })
 
 console.log('identityPublicKey', identityPublicKey)
 
 if (!key) {
 	console.log('\ncopy and run this in a new terminal window:\n')
-	console.log(`node examples/basic/mdns-peer.js ${topic}`)
+	console.log(`node examples/basic/discovery.js ${topic.toString('hex')}`)
 }
 
-discover.on('connection', (connection, peer, source) => {
+discover.on('peer', (connection, peer, source) => {
 	console.log('peer', peer, source)
 	console.log('peers', discover.peers)
-	console.log('peers.length', discover.peers.length)
 	console.log('own public key', identityPublicKey)
+	console.log('topics', peer.topics)
 })
+
+await discover.join()
