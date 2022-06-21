@@ -1,11 +1,48 @@
+import { KeyManager, invites } from '@mapeo/crypto'
+
 import { Project } from './lib/project';
 
 export default class MapeoCore {
-	constructor (options = {}) {
+
+	/**
+	 * @param {object} options
+	 * @param {Buffer} options.rootKey
+	 */
+	constructor ({ rootKey }) {
+		this.keyManager = new KeyManager(rootKey)
+		this.projects = new Map()
+	}
+
+	createRootKey () {
+		return KeyManager.generateRootKey()
+	}
+
+	project (name, namespace) {
+		let project = this.projects.get()
+		return new Project(options)
+	}
+
+	sendJoinRequest () {
 
 	}
 
-	project (options = {}) {
-		return new Project(options)
+	checkJoinRequest () {
+
+	}
+
+	sendInvite () {
+
+	}
+
+	acceptInvite () {
+
+	}
+
+	getBackupCode () {
+
+	}
+
+	decodeBackupCode () {
+
 	}
 }

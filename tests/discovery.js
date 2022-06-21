@@ -1,5 +1,4 @@
-import log from 'why-is-node-running'
-import { test } from 'brittle'
+import test from 'brittle'
 
 import getPort from 'get-port'
 import createTestnet from '@hyperswarm/testnet'
@@ -23,50 +22,43 @@ test('discovery - dht/hyperswarm', async (t) => {
 	const identityPublicKey2 = identity2.identityKeyPair.publicKey.toString('hex')
 
 	const discover1 = new Discovery({
-		topic: keyPair.publicKey,
 		port: await getPort(),
-		identityKeyPair: identity1.identityKeyPair,
+		keyPair: identity1.identityKeyPair,
 		mdns: false,
 		dht: { bootstrap, server: true, client: true }
 	})
 
 	const discover2 = new Discovery({
-		topic: keyPair.publicKey,
 		port: await getPort(),
-		identityKeyPair: identity2.identityKeyPair,
+		keyPair: identity2.identityKeyPair,
 		mdns: false,
 		dht: { bootstrap, server: true, client: true }
 	})
 
-	let count = 0
 	discover1.on('peer', async (connection, peer) => {
-		t.ok(peer.publicKey.toString('hex') === identityPublicKey2)
-		await end()
+		console.log('discover1')
+		t.ok(peer.publicKey.toString('hex') === identityPublicKey2, 'match key of 2nd peer')
+		await step()
 	})
 
 	discover2.on('peer', async (connection, peer) => {
-		t.ok(peer.publicKey.toString('hex') === identityPublicKey1)
-		await end()
+		// console.log('discover2')
+		t.ok(peer.publicKey.toString('hex') === identityPublicKey1, 'match key of 1st peer')
+		await step()
 	})
 
-	await discover1.join()
-	await discover2.join()
-
-	async function end () {
+	let count = 0
+	async function step () {
 		count++
 		if (count === 2) {
-			await discover1.leave()
-			await discover2.leave()
+			await discover1.leave(keyPair.publicKey)
+			await discover2.leave(keyPair.publicKey)
 			await discover1.destroy()
 			await discover2.destroy()
 			await testnet.destroy()
-
-			t.end()
-			// discover1.on('destroyed', () => {
-			// 	discover2.on('destroyed', () => {
-			// 		t.end()
-			// 	})
-			// })
 		}
 	}
+
+	await discover1.join(keyPair.publicKey)
+	await discover2.join(keyPair.publicKey)
 })

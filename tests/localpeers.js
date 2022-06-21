@@ -1,4 +1,4 @@
-import { test } from 'brittle'
+import test from 'brittle'
 
 import getPort from 'get-port'
 
@@ -57,7 +57,7 @@ test('localpeers join & leave', async (t) => {
 
 			discover1.on('destroyed', () => {
 				discover2.on('destroyed', () => {
-					t.end()
+					// t.end()
 				})
 			})
 		}
@@ -118,7 +118,7 @@ test('mdns peer discovery: connect two peers', async (t) => {
 
 			discover1.on('destroyed', () => {
 				discover2.on('destroyed', () => {
-					t.end()
+					// t.end()
 				})
 			})
 		}
