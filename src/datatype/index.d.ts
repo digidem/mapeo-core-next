@@ -64,6 +64,10 @@ export class DataType<
 
   get [kTable](): TTable
 
+  get schemaName(): TSchemaName
+
+  get namespace(): TDataStore.namespace
+
   get writerCore(): Hypercore<'binary', Buffer>
 
   [kCreateWithDocId](

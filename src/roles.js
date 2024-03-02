@@ -361,13 +361,13 @@ export class Roles {
         "Only the project creator can assign the project creator's role"
       )
     }
-    const ownRole = await this.getRole(this.#ownDeviceId)
 
     if (roleId === LEFT_ROLE_ID) {
       if (deviceId !== this.#ownDeviceId) {
         throw new Error('Cannot assign LEFT role to another device')
       }
     } else {
+      const ownRole = await this.getRole(this.#ownDeviceId)
       if (!ownRole.roleAssignment.includes(roleId)) {
         throw new Error('Lacks permission to assign role ' + roleId)
       }

@@ -39,6 +39,7 @@ import {
   getDeviceId,
   projectKeyToId,
   projectKeyToPublicId,
+  setHas,
   valueOf,
 } from './utils.js'
 import { MemberApi } from './member-api.js'
@@ -68,6 +69,7 @@ export class MapeoProject extends TypedEmitter {
   #projectId
   #deviceId
   #coreManager
+  #indexWriter
   #dataStores
   #dataTypes
   #blobStore
@@ -146,7 +148,7 @@ export class MapeoProject extends TypedEmitter {
       logger: this.#l,
     })
 
-    const indexWriter = new IndexWriter({
+    this.#indexWriter = new IndexWriter({
       tables: [
         observationTable,
         presetTable,
@@ -174,7 +176,7 @@ export class MapeoProject extends TypedEmitter {
       auth: new DataStore({
         coreManager: this.#coreManager,
         namespace: 'auth',
-        batch: (entries) => indexWriter.batch(entries),
+        batch: (entries) => this.#indexWriter.batch(entries),
         storage: indexerStorage,
       }),
       config: new DataStore({
@@ -182,7 +184,7 @@ export class MapeoProject extends TypedEmitter {
         namespace: 'config',
         batch: (entries) =>
           this.#handleConfigEntries(entries, {
-            projectIndexWriter: indexWriter,
+            projectIndexWriter: this.#indexWriter,
             sharedIndexWriter,
           }),
         storage: indexerStorage,
@@ -190,7 +192,7 @@ export class MapeoProject extends TypedEmitter {
       data: new DataStore({
         coreManager: this.#coreManager,
         namespace: 'data',
-        batch: (entries) => indexWriter.batch(entries),
+        batch: (entries) => this.#indexWriter.batch(entries),
         storage: indexerStorage,
       }),
     }
@@ -626,9 +628,28 @@ export class MapeoProject extends TypedEmitter {
       ])
     )
 
-    // TODO: 3. Clear data from indexes
+    // 3. Clear data from indexes
     // 3.1 Reset multi-core indexer state
+    await Promise.all(
+      Object.values(this.#dataStores)
+        .filter((dataStore) => dataStore.namespace !== 'auth')
+        .map(async (dataStore) => {
+          await dataStore.close()
+          await dataStore.unlink()
+        })
+    )
+
     // 3.2 Clear indexed data
+    const isIndexedSchema = setHas(new Set(this.#indexWriter.schemas))
+    await Promise.all(
+      Object.values(this.#dataTypes)
+        .filter((dataType) =>
+          namespacesWithoutAuth.includes(dataType.namespace)
+        )
+        .map((dataType) => dataType.schemaName)
+        .filter(isIndexedSchema)
+        .map((schemaName) => this.#indexWriter.deleteSchema(schemaName))
+    )
 
     // 4. Assign LEFT role for device
     await this.#roles.assignRole(this.#deviceId, LEFT_ROLE_ID)

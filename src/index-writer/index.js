@@ -22,7 +22,12 @@ import { Logger } from '../logger.js'
  * @template {MapeoDocTables} [TTables=MapeoDocTables]
  */
 export class IndexWriter {
-  /** @type {Map<TTables['_']['name'], SqliteIndexer>} */
+  /**
+   * @internal
+   * @typedef {TTables['_']['name']} SchemaName
+   */
+
+  /** @type {Map<SchemaName, SqliteIndexer>} */
   #indexers = new Map()
   #mapDoc
   #l
@@ -52,8 +57,11 @@ export class IndexWriter {
     }
   }
 
+  /**
+   * @returns {Iterable<SchemaName>}
+   */
   get schemas() {
-    return [...this.#indexers.keys()]
+    return this.#indexers.keys()
   }
 
   /**
@@ -104,5 +112,16 @@ export class IndexWriter {
       }
     }
     return indexed
+  }
+
+  /**
+   * @param {SchemaName} schemaName
+   */
+  deleteSchema(schemaName) {
+    const indexer = this.#indexers.get(schemaName)
+    if (!indexer) {
+      throw new Error(`IndexWriter doesn't know a schema named "${schemaName}"`)
+    }
+    indexer.deleteAll()
   }
 }

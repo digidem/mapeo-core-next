@@ -244,6 +244,20 @@ test('Data access after leaving project', async (t) => {
 
   const [, coordinatorProject, memberProject] = projects
 
+  await memberProject.observation.create({
+    schemaName: 'observation',
+    attachments: [],
+    tags: {},
+    refs: [],
+    metadata: {},
+  })
+  t.ok(
+    (await memberProject.observation.getMany()).length >= 1,
+    'Test is set up correctly'
+  )
+
+  await waitForSync(projects, 'initial')
+
   await Promise.all([
     coordinator.leaveProject(projectId),
     member.leaveProject(projectId),
@@ -260,6 +274,12 @@ test('Data access after leaving project', async (t) => {
       metadata: {},
     })
   }, 'member cannot create new data after leaving')
+  // It would also be reasonable for this to reject:
+  t.alike(
+    await memberProject.observation.getMany(),
+    [],
+    "Shouldn't have any observations after leaving"
+  )
 
   t.alike(
     await memberProject.$getProjectSettings(),
