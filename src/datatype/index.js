@@ -6,6 +6,8 @@ import { randomBytes } from 'node:crypto'
 import { deNullify } from '../utils.js'
 import crypto from 'hypercore-crypto'
 import { TypedEmitter } from 'tiny-typed-emitter'
+import { parse as parseBCP47 } from 'bcp-47'
+import { setProperty, hasProperty } from 'dot-prop'
 
 /**
  * @typedef {import('@mapeo/schema').MapeoDoc} MapeoDoc
@@ -43,6 +45,24 @@ import { TypedEmitter } from 'tiny-typed-emitter'
  * @typedef {object} DataTypeEvents
  * @property {(docs: TDoc[]) => void} updated-docs
  */
+/**
+ * @typedef {string} LanguageCode
+ */
+/**
+ * @typedef {object} TranslationRow
+ * @property {LanguageCode} languageCode
+ * @property {string} [regionCode]
+ * @property {MapeoDoc['schemaName']} schemaNameRef
+ * @property {string} docIdRef
+ * @property {string} docId
+ * @property {string} fieldRef
+ * @property {string} message
+ */
+/**
+ * @typedef {object} TranslationApi
+ * @property {Map<LanguageCode, Set<MapeoDoc['schemaName']>>} translatedRecords
+ * @property {(opts: Pick<TranslationRow, 'docIdRef' | 'schemaNameRef' | 'languageCode' | 'regionCode'>) => TranslationRow[]} get
+ */
 
 function generateId() {
   return randomBytes(32).toString('hex')
@@ -69,6 +89,7 @@ export class DataType extends TypedEmitter {
   #schemaName
   #sql
   #db
+  #translation
 
   /**
    *
@@ -76,15 +97,17 @@ export class DataType extends TypedEmitter {
    * @param {TTable} opts.table
    * @param {TDataStore} opts.dataStore
    * @param {import('drizzle-orm/better-sqlite3').BetterSQLite3Database} opts.db
+   * @param {TranslationApi} opts.translation
    * @param {() => any} [opts.getPermissions]
    */
-  constructor({ dataStore, table, getPermissions, db }) {
+  constructor({ dataStore, table, getPermissions, db, translation }) {
     super()
     this.#dataStore = dataStore
     this.#table = table
     this.#schemaName = /** @type {TSchemaName} */ (getTableConfig(table).name)
     this.#getPermissions = getPermissions
     this.#db = db
+    this.#translation = translation
     this.#sql = {
       getByDocId: db
         .select()
@@ -171,26 +194,70 @@ export class DataType extends TypedEmitter {
 
   /**
    * @param {string} docId
+   * @param {{ lang?: string }} [opts]
    */
-  async getByDocId(docId) {
+  async getByDocId(docId, { lang } = {}) {
     await this.#dataStore.indexer.idle()
-    const result = this.#sql.getByDocId.get({ docId })
+    const result = /** @type {MapeoDoc} */ (this.#sql.getByDocId.get({ docId }))
     if (!result) throw new Error('Not found')
-    return deNullify(result)
+    return this.#translate(deNullify(result), { lang })
   }
 
-  /** @param {string} versionId */
-  async getByVersionId(versionId) {
-    return this.#dataStore.read(versionId)
+  /**
+   * @param {string} versionId
+   * @param {{ lang?: string }} [opts]
+   */
+  async getByVersionId(versionId, { lang } = {}) {
+    const result = await this.#dataStore.read(versionId)
+    return this.#translate(result, { lang })
   }
 
-  /** @param {{ includeDeleted?: boolean }} [opts] */
-  async getMany({ includeDeleted = false } = {}) {
+  /**
+   * @param {MapeoDoc} doc
+   * @param {{ lang?: string }} [opts]
+   */
+  #translate(doc, { lang } = {}) {
+    if (!lang) return doc
+    const { language, region } = parseBCP47(lang)
+    if (!language) return doc
+    const translatedRecords = this.#translation.translatedRecords.get(language)
+    // No translations indexed for this doc type, so don't try to translate
+    if (!translatedRecords || !translatedRecords.has(this.#schemaName)) {
+      return doc
+    }
+    const translations = this.#translation.get({
+      languageCode: language,
+      schemaNameRef: doc.schemaName,
+      docIdRef: doc.docId,
+    })
+    const indexedTranslations = indexTranslations(translations)
+    const translatedDoc = JSON.parse(JSON.stringify(doc))
+
+    for (const [fieldRef, byRegionCode] of indexedTranslations.entries()) {
+      if (!hasProperty(translatedDoc, fieldRef)) continue
+      const t =
+        byRegionCode.get(region === null ? undefined : region) ||
+        byRegionCode.values().next().value
+      if (!t) continue
+      setProperty(translatedDoc, fieldRef, t.message)
+    }
+
+    return translatedDoc
+  }
+
+  /** @param {{ includeDeleted?: boolean, lang?: string }} [opts] */
+  async getMany({ includeDeleted = false, lang } = {}) {
     await this.#dataStore.indexer.idle()
     const rows = includeDeleted
       ? this.#sql.getManyWithDeleted.all()
       : this.#sql.getMany.all()
-    return rows.map((doc) => deNullify(doc))
+    return rows.map((doc) =>
+      this.#translate(
+        // @ts-ignore - too complicated to type this
+        deNullify(doc),
+        { lang }
+      )
+    )
   }
 
   /**
@@ -231,7 +298,6 @@ export class DataType extends TypedEmitter {
     const doc = {
       ...existingDoc,
       updatedAt: new Date().toISOString(),
-      // @ts-expect-error - TS just doesn't work in this class
       links: [existingDoc.versionId, ...existingDoc.forks],
       deleted: true,
     }
@@ -293,3 +359,27 @@ export class DataType extends TypedEmitter {
 }
 
 function noop() {}
+
+/**
+ * @typedef {Map<TranslationRow['fieldRef'], Map<TranslationRow['regionCode'], TranslationRow>>} TranslationIndex
+ */
+
+/**
+ * @param {TranslationRow[]} translations
+ * @returns {TranslationIndex}
+ */
+function indexTranslations(translations) {
+  /** @type {TranslationIndex} */
+  const index = new Map()
+  for (const t of translations) {
+    let byRegionCode = index.get(t.fieldRef)
+    if (!byRegionCode) {
+      byRegionCode = new Map()
+      index.set(t.fieldRef, byRegionCode)
+    }
+    // There should never be more than one entry here, due to constraints on how
+    // translation IDs are generated, and translations are then indexed
+    byRegionCode.set(t.regionCode, t)
+  }
+  return index
+}

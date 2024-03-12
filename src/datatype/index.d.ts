@@ -82,12 +82,16 @@ export class DataType<
     >
   >(value: T): Promise<TDoc & { forks: string[] }>
 
-  getByDocId(docId: string): Promise<TDoc & { forks: string[] }>
+  getByDocId(
+    docId: string,
+    opts?: { lang?: string }
+  ): Promise<TDoc & { forks: string[] }>
 
-  getByVersionId(versionId: string): Promise<TDoc>
+  getByVersionId(versionId: string, opts?: { lang?: string }): Promise<TDoc>
 
   getMany(opts?: {
     includeDeleted?: boolean
+    lang?: string
   }): Promise<Array<TDoc & { forks: string[] }>>
 
   update<
