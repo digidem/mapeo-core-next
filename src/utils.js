@@ -1,5 +1,7 @@
 import b4a from 'b4a'
 import { keyToPublicId } from '@mapeo/crypto'
+import { createHash } from 'node:crypto'
+import stableStringify from 'json-stable-stringify'
 
 /**
  * @param {String|Buffer} id
@@ -198,4 +200,16 @@ export function createMap(keys, value) {
     map[key] = typeof value === 'function' ? value() : value
   }
   return map
+}
+
+/**
+ * create a sha256 hash of an object using json-stable-stringify for deterministic results
+ * @param {Object} obj
+ * @returns {String} hash of the object
+ */
+export function hashObject(obj) {
+  return createHash('sha256')
+    .update(stableStringify(obj))
+    .digest()
+    .toString('hex')
 }

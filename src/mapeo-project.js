@@ -1,7 +1,7 @@
 // @ts-check
 import path from 'path'
 import Database from 'better-sqlite3'
-import { decodeBlockPrefix } from '@mapeo/schema'
+import { decodeBlockPrefix, decode } from '@mapeo/schema'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { discoveryKey } from 'hypercore-crypto'
@@ -23,6 +23,7 @@ import {
   presetTable,
   roleTable,
   iconTable,
+  translationTable,
 } from './schema/project.js'
 import {
   CoreOwnership,
@@ -46,6 +47,7 @@ import { SyncApi, kHandleDiscoveryKey } from './sync/sync-api.js'
 import { Logger } from './logger.js'
 import { IconApi } from './icon-api.js'
 import { readConfig } from './config-import.js'
+import TranslationApi from './translation-api.js'
 
 /** @typedef {Omit<import('@mapeo/schema').ProjectSettingsValue, 'schemaName'>} EditableProjectSettings */
 
@@ -79,6 +81,7 @@ export class MapeoProject extends TypedEmitter {
   #memberApi
   #iconApi
   #syncApi
+  #translationApi
   #l
 
   static EMPTY_PROJECT_SETTINGS = EMPTY_PROJECT_SETTINGS
@@ -235,6 +238,11 @@ export class MapeoProject extends TypedEmitter {
         table: iconTable,
         db,
       }),
+      translation: new DataType({
+        dataStore: this.#dataStores.config,
+        table: translationTable,
+        db,
+      }),
     }
     const identityKeypair = keyManager.getIdentityKeypair()
     const coreKeypairs = getCoreKeypairs({
@@ -301,6 +309,11 @@ export class MapeoProject extends TypedEmitter {
       coreManager: this.#coreManager,
       roles: this.#roles,
       logger: this.#l,
+    })
+
+    this.#translationApi = new TranslationApi({
+      dataType: this.#dataTypes.translation,
+      table: translationTable,
     })
 
     ///////// 4. Replicate local peers automatically
@@ -413,6 +426,17 @@ export class MapeoProject extends TypedEmitter {
 
         if (schemaName === 'projectSettings') {
           projectSettingsEntries.push(entry)
+        } else if (schemaName === 'translation') {
+          const doc = decode(entry.block, {
+            coreDiscoveryKey: entry.key,
+            index: entry.index,
+          })
+
+          // this is so that I can cast the doc as a `TranslationValue`
+          // without needing to decode the doc beforehand
+          if (doc.schemaName === 'translation') {
+            this.#translationApi.index(doc)
+          }
         } else {
           otherEntries.push(entry)
         }
