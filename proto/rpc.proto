@@ -11,6 +11,10 @@ message Invite {
   string invitorName = 6;
 }
 
+message InviteCancel {
+  bytes inviteId = 1;
+}
+
 message InviteResponse {
   enum Decision {
     REJECT = 0;

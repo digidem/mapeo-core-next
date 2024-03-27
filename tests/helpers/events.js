@@ -9,7 +9,7 @@ import { arrayFrom } from 'iterpal'
  * @param {import('node:events').EventEmitter} emitter
  * @param {string | symbol} eventName
  * @param {number} count
- * @returns {Promise<unknown[]>}
+ * @returns {Promise<unknown[][]>}
  */
 export function onTimes(emitter, eventName, count) {
   assert(
@@ -17,6 +17,9 @@ export function onTimes(emitter, eventName, count) {
     'onTimes called with an invalid count'
   )
 
-  const events = pEventIterator(emitter, eventName, { limit: count })
+  const events = pEventIterator(emitter, eventName, {
+    multiArgs: true,
+    limit: count,
+  })
   return arrayFrom(events)
 }

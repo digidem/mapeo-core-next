@@ -1,6 +1,5 @@
 // @ts-check
 import { test, skip } from 'brittle'
-import FakeTimers from '@sinonjs/fake-timers'
 import { InviteResponse_Decision } from '../src/generated/rpc.js'
 import { once } from 'node:events'
 import {
@@ -235,13 +234,7 @@ test('member invite rejected', async (t) => {
   await disconnectPeers([creator, joiner])
 })
 
-test('times out', async (t) => {
-  const clock = FakeTimers.install({
-    shouldAdvanceTime: true,
-    shouldClearNativeTimers: true,
-  })
-  t.teardown(() => clock.uninstall())
-
+test('cancelation', async (t) => {
   const [creator, joiner] = await createManagers(2, t)
   connectPeers([creator, joiner])
   t.teardown(() => disconnectPeers([creator, joiner]))
@@ -251,23 +244,33 @@ test('times out', async (t) => {
   const creatorProject = await creator.getProject(createdProjectId)
 
   const inviteReceivedPromise = once(joiner.invite, 'invite-received')
+  const inviteRemovedPromise = once(joiner.invite, 'invite-removed')
 
-  const responsePromise = creatorProject.$member.invite(joiner.deviceId, {
+  const abortController = new AbortController()
+
+  const invitePromise = creatorProject.$member.invite(joiner.deviceId, {
     roleId: MEMBER_ROLE_ID,
-    timeout: 1234,
+    signal: abortController.signal,
   })
-  const timeoutAssertionPromise = t.exception(
-    responsePromise,
-    /Invite timed out/,
-    'should time out'
+  const inviteAbortedAssertionPromise = t.exception(
+    invitePromise,
+    /Invite aborted/,
+    'should throw after being aborted'
   )
 
-  await clock.tickAsync(1235)
-
   const [invite] = await inviteReceivedPromise
-  joiner.invite.accept(invite)
 
-  await timeoutAssertionPromise
+  abortController.abort()
+  await inviteAbortedAssertionPromise
+
+  const [canceledInvite, removalReason] = await inviteRemovedPromise
+
+  t.alike(
+    invite.inviteId,
+    canceledInvite.inviteId,
+    'removed invite has correct ID'
+  )
+  t.is(removalReason, 'canceled')
 })
 
 /**

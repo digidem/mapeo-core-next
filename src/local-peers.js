@@ -7,6 +7,7 @@ import cenc from 'compact-encoding'
 import {
   DeviceInfo,
   Invite,
+  InviteCancel,
   InviteResponse,
   ProjectJoinDetails,
 } from './generated/rpc.js'
@@ -27,8 +28,7 @@ const DEDUPE_TIMEOUT = 1000
 /** @satisfies {{ [k in keyof typeof import('./generated/rpc.js')]?: number }} */
 const MESSAGE_TYPES = {
   Invite: 0,
-  // TODO: Add invite cancelations.
-  // InviteCancel: 1,
+  InviteCancel: 1,
   InviteResponse: 2,
   ProjectJoinDetails: 3,
   DeviceInfo: 4,
@@ -160,6 +160,14 @@ class Peer {
     this.#channel.messages[messageType].send(buf)
     this.#log('sent invite %h', invite.inviteId)
   }
+  /** @param {InviteCancel} inviteCancel */
+  sendInviteCancel(inviteCancel) {
+    this.#assertConnected()
+    const buf = Buffer.from(InviteCancel.encode(inviteCancel).finish())
+    const messageType = MESSAGE_TYPES.InviteCancel
+    this.#channel.messages[messageType].send(buf)
+    this.#log('sent invite cancel %h', inviteCancel.inviteId)
+  }
   /** @param {InviteResponse} response */
   sendInviteResponse(response) {
     this.#assertConnected()
@@ -201,6 +209,7 @@ class Peer {
  * @property {(peers: PeerInfo[]) => void} peers Emitted whenever the connection status of peers changes. An array of peerInfo objects with a peer id and the peer connection status
  * @property {(peer: PeerInfoConnected) => void} peer-add Emitted when a new peer is connected
  * @property {(peerId: string, invite: Invite) => void} invite Emitted when an invite is received
+ * @property {(peerId: string, invite: InviteCancel) => void} invite-cancel Emitted when we receive a cancelation for an invite
  * @property {(peerId: string, inviteResponse: InviteResponse) => void} invite-response Emitted when an invite response is received
  * @property {(peerId: string, details: ProjectJoinDetails) => void} got-project-details Emitted when project details are received
  * @property {(discoveryKey: Buffer, protomux: Protomux<import('@hyperswarm/secret-stream')>) => void} discovery-key Emitted when a new hypercore is replicated (by a peer) to a peer protomux instance (passed as the second parameter)
@@ -246,6 +255,17 @@ export class LocalPeers extends TypedEmitter {
     await this.#waitForPendingConnections()
     const peer = await this.#getPeerByDeviceId(deviceId)
     peer.sendInvite(invite)
+  }
+
+  /**
+   * @param {string} deviceId
+   * @param {InviteCancel} inviteCancel
+   * @returns {Promise<void>}
+   */
+  async sendInviteCancel(deviceId, inviteCancel) {
+    await this.#waitForPendingConnections()
+    const peer = await this.#getPeerByDeviceId(deviceId)
+    peer.sendInviteCancel(inviteCancel)
   }
 
   /**
@@ -486,6 +506,17 @@ export class LocalPeers extends TypedEmitter {
         )
         break
       }
+      case 'InviteCancel': {
+        const inviteCancel = parseInviteCancel(value)
+        const peerId = keyToId(protomux.stream.remotePublicKey)
+        this.emit('invite-cancel', peerId, inviteCancel)
+        this.#l.log(
+          'Invite cancel from %S for %h',
+          peerId,
+          inviteCancel.inviteId
+        )
+        break
+      }
       case 'InviteResponse': {
         const inviteResponse = parseInviteResponse(value)
         const peerId = keyToId(protomux.stream.remotePublicKey)
@@ -596,6 +627,17 @@ function parseInvite(data) {
   assert(result.projectPublicId.length, 'Invite must have project public ID')
   assert(!isBlank(result.projectName), 'Invite project name cannot be blank')
   assert(!isBlank(result.invitorName), 'Invite invitor name cannot be blank')
+  return result
+}
+
+/**
+ * @param {Readonly<Uint8Array>} data
+ * @throws if the data is invalid
+ * @returns {InviteCancel}
+ */
+function parseInviteCancel(data) {
+  const result = InviteCancel.decode(data)
+  assertInviteIdIsValid(result.inviteId)
   return result
 }
 

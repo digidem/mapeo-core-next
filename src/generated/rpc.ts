@@ -11,6 +11,10 @@ export interface Invite {
   invitorName: string;
 }
 
+export interface InviteCancel {
+  inviteId: Buffer;
+}
+
 export interface InviteResponse {
   inviteId: Buffer;
   decision: InviteResponse_Decision;
@@ -205,6 +209,51 @@ export const Invite = {
     message.roleName = object.roleName ?? undefined;
     message.roleDescription = object.roleDescription ?? undefined;
     message.invitorName = object.invitorName ?? "";
+    return message;
+  },
+};
+
+function createBaseInviteCancel(): InviteCancel {
+  return { inviteId: Buffer.alloc(0) };
+}
+
+export const InviteCancel = {
+  encode(message: InviteCancel, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.inviteId.length !== 0) {
+      writer.uint32(10).bytes(message.inviteId);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): InviteCancel {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseInviteCancel();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.inviteId = reader.bytes() as Buffer;
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<InviteCancel>, I>>(base?: I): InviteCancel {
+    return InviteCancel.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<InviteCancel>, I>>(object: I): InviteCancel {
+    const message = createBaseInviteCancel();
+    message.inviteId = object.inviteId ?? Buffer.alloc(0);
     return message;
   },
 };

@@ -9,10 +9,9 @@ import {
   projectKeyToId,
   projectKeyToPublicId,
 } from './utils.js'
+import { abortSignalAny } from './lib/ponyfills.js'
 import timingSafeEqual from './lib/timing-safe-equal.js'
 import { ROLES, isRoleIdForNewInvite } from './roles.js'
-
-const DEFAULT_INVITE_TIMEOUT = 5 * (1000 * 60)
 
 /**
  * @internal
@@ -82,7 +81,7 @@ export class MemberApi extends TypedEmitter {
    * @param {import('./roles.js').RoleIdForNewInvite} opts.roleId
    * @param {string} [opts.roleName]
    * @param {string} [opts.roleDescription]
-   * @param {number} [opts.timeout]
+   * @param {AbortSignal} [opts.signal]
    * @returns {Promise<(
    *   typeof InviteResponse_Decision.ACCEPT |
    *   typeof InviteResponse_Decision.REJECT |
@@ -91,20 +90,15 @@ export class MemberApi extends TypedEmitter {
    */
   async invite(
     deviceId,
-    {
-      roleId,
-      roleName = ROLES[roleId]?.name,
-      roleDescription,
-      timeout = DEFAULT_INVITE_TIMEOUT,
-    }
+    { roleId, roleName = ROLES[roleId]?.name, roleDescription, signal }
   ) {
     assert(isRoleIdForNewInvite(roleId), 'Invalid role ID for new invite')
     assert(
       !this.#deviceIdsWithPendingInvites.has(deviceId),
       'Already inviting this device ID'
     )
-    assert(timeout > 0, 'Timeout should be a positive number')
-    assert(timeout < 2 ** 32, 'Timeout is too large')
+
+    signal?.throwIfAborted()
 
     try {
       this.#deviceIdsWithPendingInvites.add(deviceId)
@@ -116,12 +110,16 @@ export class MemberApi extends TypedEmitter {
         'Internal error trying to read own device name for this invite'
       )
 
+      signal?.throwIfAborted()
+
       const inviteId = crypto.randomBytes(32)
       const projectId = projectKeyToId(this.#projectKey)
       const projectPublicId = projectKeyToPublicId(this.#projectKey)
       const project = await this.#dataTypes.project.getByDocId(projectId)
       const projectName = project.name
       assert(projectName, 'Project must have a name to invite people')
+
+      signal?.throwIfAborted()
 
       const invite = {
         inviteId,
@@ -135,7 +133,7 @@ export class MemberApi extends TypedEmitter {
       const inviteResponse = await this.#sendInviteAndGetResponse(
         deviceId,
         invite,
-        { timeout }
+        { signal }
       )
 
       switch (inviteResponse.decision) {
@@ -173,11 +171,10 @@ export class MemberApi extends TypedEmitter {
    * @param {string} deviceId
    * @param {Invite} invite
    * @param {object} options
-   * @param {number} options.timeout
+   * @param {AbortSignal} [options.signal]
    */
-  async #sendInviteAndGetResponse(deviceId, invite, { timeout }) {
+  async #sendInviteAndGetResponse(deviceId, invite, { signal }) {
     const abortController = new AbortController()
-    const timeoutId = setTimeout(() => abortController.abort(), timeout)
 
     const responsePromise =
       /** @type {typeof pEvent<'invite-response', [string, InviteResponse]>} */ (
@@ -187,22 +184,33 @@ export class MemberApi extends TypedEmitter {
         filter: ([peerId, inviteResponse]) =>
           timingSafeEqual(peerId, deviceId) &&
           timingSafeEqual(invite.inviteId, inviteResponse.inviteId),
-        signal: abortController.signal,
+        signal: signal
+          ? abortSignalAny([abortController.signal, signal])
+          : abortController.signal,
       }).then((args) => args?.[1])
 
     responsePromise.catch(noop)
+
+    signal?.addEventListener(
+      'abort',
+      () => {
+        this.#rpc
+          .sendInviteCancel(deviceId, { inviteId: invite.inviteId })
+          .catch(noop)
+      },
+      { once: true }
+    )
 
     try {
       await this.#rpc.sendInvite(deviceId, invite)
       return await responsePromise
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error('Invite timed out')
+        throw new Error('Invite aborted')
       } else {
         throw err
       }
     } finally {
-      clearTimeout(timeoutId)
       abortController.abort()
     }
   }

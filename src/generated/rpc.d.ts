@@ -9,6 +9,9 @@ export interface Invite {
     roleDescription?: string | undefined;
     invitorName: string;
 }
+export interface InviteCancel {
+    inviteId: Buffer;
+}
 export interface InviteResponse {
     inviteId: Buffer;
     decision: InviteResponse_Decision;
@@ -73,6 +76,20 @@ export declare const Invite: {
         roleDescription?: string | undefined;
         invitorName?: string;
     } & { [K_1 in Exclude<keyof I_1, keyof Invite>]: never; }>(object: I_1): Invite;
+};
+export declare const InviteCancel: {
+    encode(message: InviteCancel, writer?: _m0.Writer): _m0.Writer;
+    decode(input: _m0.Reader | Uint8Array, length?: number): InviteCancel;
+    create<I extends {
+        inviteId?: Buffer;
+    } & {
+        inviteId?: Buffer;
+    } & { [K in Exclude<keyof I, "inviteId">]: never; }>(base?: I): InviteCancel;
+    fromPartial<I_1 extends {
+        inviteId?: Buffer;
+    } & {
+        inviteId?: Buffer;
+    } & { [K_1 in Exclude<keyof I_1, "inviteId">]: never; }>(object: I_1): InviteCancel;
 };
 export declare const InviteResponse: {
     encode(message: InviteResponse, writer?: _m0.Writer): _m0.Writer;

@@ -100,7 +100,9 @@ test('invite-received event has expected payload', async (t) => {
       invitorName: 'Your Friend',
     },
   ]
-  const receivedInvitesArgs = await invitesReceivedPromise
+  const receivedInvitesArgs = (await invitesReceivedPromise).map(
+    (args) => args[0]
+  )
   t.alike(receivedInvitesArgs, expectedInvites, 'received expected invites')
   t.alike(inviteApi.getPending(), expectedInvites)
 })
@@ -176,8 +178,9 @@ test('Accept invite', async (t) => {
     'added to project'
   )
 
-  const [removedInvite] = await inviteRemovedPromise
+  const [removedInvite, removalReason] = await inviteRemovedPromise
   t.alike(removedInvite, inviteExternal, 'invite was removed')
+  t.is(removalReason, 'accepted')
   t.alike(inviteApi.getPending(), [], 'no invites remain')
 })
 
@@ -216,8 +219,9 @@ test('Reject invite', async (t) => {
 
   inviteApi.reject(inviteExternal)
 
-  const [removedInvite] = await inviteRemovedPromise
+  const [removedInvite, removalReason] = await inviteRemovedPromise
   t.alike(removedInvite, inviteExternal, 'invite was removed')
+  t.is(removalReason, 'rejected')
   t.alike(inviteApi.getPending(), [], 'pending invites removed')
 
   // Invitor: check rejection
@@ -321,8 +325,9 @@ test('Receiving invite for project that peer already belongs to', async (t) => {
 
       await inviteApi.accept(inviteExternal)
 
-      const [removedInvite] = await inviteRemovedPromise
+      const [removedInvite, removalReason] = await inviteRemovedPromise
       t.alike(removedInvite, inviteExternal, 'invite was removed')
+      t.is(removalReason, 'accepted')
       t.alike(inviteApi.getPending(), [], 'has no pending invites')
 
       // Invitor: check invite response
@@ -488,7 +493,9 @@ test('Receiving invite for project that peer already belongs to', async (t) => {
       'got expected responses'
     )
 
-    const removedInvites = await invitesRemovedPromise
+    const invitesRemovedArgs = await invitesRemovedPromise
+
+    const removedInvites = invitesRemovedArgs.map((args) => args[0])
     const allButLastRemoved = removedInvites.slice(0, -1)
     const lastRemoved = removedInvites[removedInvites.length - 1]
     t.alike(
@@ -506,6 +513,20 @@ test('Receiving invite for project that peer already belongs to', async (t) => {
       inviteExternal,
       'accepted invite was removed last, to avoid UI jitter'
     )
+
+    const removalReasons = invitesRemovedArgs.map((args) => args[1])
+    t.alike(
+      removalReasons,
+      [
+        'accepted other',
+        'accepted other',
+        'accepted other',
+        'accepted other',
+        'accepted',
+      ],
+      'invites are removed with the right reasons'
+    )
+
     t.alike(
       inviteApi.getPending(),
       [unrelatedInviteExternal],
@@ -917,8 +938,13 @@ test('failures to send acceptances cause accept to reject, no project to be adde
   await t.exception(inviteApi.accept(inviteExternal), 'fails to accept')
 
   t.is(acceptsAttempted, 1)
-  const [removedInvite] = await inviteRemovedPromise
+  const [removedInvite, removalReason] = await inviteRemovedPromise
   t.alike(removedInvite, inviteExternal, 'invite was removed')
+  t.is(
+    removalReason,
+    'connection error',
+    'invite was removed with connection error reason'
+  )
   t.alike(inviteApi.getPending(), [], 'has no pending invites')
 })
 
@@ -957,8 +983,9 @@ test('failures to send rejections are ignored, but invite is still removed', asy
   t.execution(() => inviteApi.reject(inviteExternal))
 
   t.is(rejectionsAttempted, 1)
-  const [removedInvite] = await inviteRemovedPromise
+  const [removedInvite, removalReason] = await inviteRemovedPromise
   t.alike(removedInvite, inviteExternal, 'invite was removed')
+  t.is(removalReason, 'rejected', 'removal reason was "rejected"')
 })
 
 test('failures to add project cause accept() to reject and invite to be removed', async (t) => {
@@ -1013,8 +1040,13 @@ test('failures to add project cause accept() to reject and invite to be removed'
 
   await t.exception(inviteApi.accept(inviteExternal), 'accept should fail')
 
-  const [removedInvite] = await inviteRemovedPromise
+  const [removedInvite, removalReason] = await inviteRemovedPromise
   t.alike(removedInvite, inviteExternal, 'invite was removed')
+  t.is(
+    removalReason,
+    'internal error',
+    'invite was removed with correct reason'
+  )
 })
 
 function setup() {

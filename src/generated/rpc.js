@@ -165,6 +165,48 @@ export var Invite = {
         return message;
     },
 };
+function createBaseInviteCancel() {
+    return { inviteId: Buffer.alloc(0) };
+}
+export var InviteCancel = {
+    encode: function (message, writer) {
+        if (writer === void 0) { writer = _m0.Writer.create(); }
+        if (message.inviteId.length !== 0) {
+            writer.uint32(10).bytes(message.inviteId);
+        }
+        return writer;
+    },
+    decode: function (input, length) {
+        var reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+        var end = length === undefined ? reader.len : reader.pos + length;
+        var message = createBaseInviteCancel();
+        while (reader.pos < end) {
+            var tag = reader.uint32();
+            switch (tag >>> 3) {
+                case 1:
+                    if (tag !== 10) {
+                        break;
+                    }
+                    message.inviteId = reader.bytes();
+                    continue;
+            }
+            if ((tag & 7) === 4 || tag === 0) {
+                break;
+            }
+            reader.skipType(tag & 7);
+        }
+        return message;
+    },
+    create: function (base) {
+        return InviteCancel.fromPartial(base !== null && base !== void 0 ? base : {});
+    },
+    fromPartial: function (object) {
+        var _a;
+        var message = createBaseInviteCancel();
+        message.inviteId = (_a = object.inviteId) !== null && _a !== void 0 ? _a : Buffer.alloc(0);
+        return message;
+    },
+};
 function createBaseInviteResponse() {
     return { inviteId: Buffer.alloc(0), decision: InviteResponse_Decision.REJECT };
 }
