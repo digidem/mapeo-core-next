@@ -234,6 +234,16 @@ export class LocalDiscovery extends TypedEmitter {
         return
       }
     }
+
+    // Bail if the server has already stopped by this point. This should be
+    // rare but can happen during connection swaps if the new connection is
+    // "promoted" after the server's doors have already been closed.
+    if (!this.#server.listening) {
+      this.#log('server stopped, destroying connection %h', remotePublicKey)
+      conn.destroy()
+      return
+    }
+
     this.#noiseConnections.set(remoteId, conn)
 
     conn.on('close', () => {
