@@ -21,7 +21,7 @@ import {
   fieldTable,
   observationTable,
   presetTable,
-  roleTable,
+  membershipTable,
   iconTable,
 } from './schema/project.js'
 import {
@@ -152,7 +152,7 @@ export class MapeoProject extends TypedEmitter {
         presetTable,
         fieldTable,
         coreOwnershipTable,
-        roleTable,
+        membershipTable,
         deviceInfoTable,
         iconTable,
       ],
@@ -220,9 +220,9 @@ export class MapeoProject extends TypedEmitter {
         table: coreOwnershipTable,
         db,
       }),
-      role: new DataType({
+      membership: new DataType({
         dataStore: this.#dataStores.auth,
-        table: roleTable,
+        table: membershipTable,
         db,
       }),
       deviceInfo: new DataType({
@@ -248,7 +248,7 @@ export class MapeoProject extends TypedEmitter {
       identityKeypair,
     })
     this.#roles = new Roles({
-      dataType: this.#dataTypes.role,
+      membership: this.#dataTypes.membership,
       coreOwnership: this.#coreOwnership,
       coreManager: this.#coreManager,
       projectKey: projectKey,
@@ -559,7 +559,7 @@ export class MapeoProject extends TypedEmitter {
 
   async [kProjectLeave]() {
     // 1. Check that the device can leave the project
-    const roleDocs = await this.#dataTypes.role.getMany()
+    const roleDocs = await this.#dataTypes.membership.getMany()
 
     // 1.1 Check that we are not blocked in the project
     const ownRole = roleDocs.find(({ docId }) => this.#deviceId === docId)

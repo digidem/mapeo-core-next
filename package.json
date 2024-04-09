@@ -125,7 +125,7 @@
     "@fastify/type-provider-typebox": "^3.3.0",
     "@hyperswarm/secret-stream": "^6.1.2",
     "@mapeo/crypto": "1.0.0-alpha.10",
-    "@mapeo/schema": "3.0.0-next.14",
+    "@mapeo/schema": "file:mapeo-schema-3.0.0-next.14.tgz",
     "@mapeo/sqlite-indexer": "1.0.0-alpha.8",
     "@sinclair/typebox": "^0.29.6",
     "b4a": "^1.6.3",

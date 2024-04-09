@@ -363,18 +363,18 @@ test('roles - assignRole()', async (t) => {
   )
 
   await t.test('invitor updates invitee role to coordinator', async (st) => {
-    const roleRecordBefore = await invitorProject[kDataTypes].role.getByDocId(
-      invitee.deviceId
-    )
+    const roleRecordBefore = await invitorProject[
+      kDataTypes
+    ].membership.getByDocId(invitee.deviceId)
 
     await invitorProject.$member.assignRole(
       invitee.deviceId,
       COORDINATOR_ROLE_ID
     )
 
-    const roleRecordAfter = await invitorProject[kDataTypes].role.getByDocId(
-      invitee.deviceId
-    )
+    const roleRecordAfter = await invitorProject[
+      kDataTypes
+    ].membership.getByDocId(invitee.deviceId)
 
     t.alike(
       roleRecordAfter.links,
@@ -399,15 +399,15 @@ test('roles - assignRole()', async (t) => {
   })
 
   await t.test('invitee updates own role to member', async (st) => {
-    const roleRecordBefore = await inviteeProject[kDataTypes].role.getByDocId(
-      invitee.deviceId
-    )
+    const roleRecordBefore = await inviteeProject[
+      kDataTypes
+    ].membership.getByDocId(invitee.deviceId)
 
     await inviteeProject.$member.assignRole(invitee.deviceId, MEMBER_ROLE_ID)
 
-    const roleRecordAfter = await inviteeProject[kDataTypes].role.getByDocId(
-      invitee.deviceId
-    )
+    const roleRecordAfter = await inviteeProject[
+      kDataTypes
+    ].membership.getByDocId(invitee.deviceId)
 
     t.alike(
       roleRecordAfter.links,
@@ -474,9 +474,9 @@ test('roles - assignRole() with forked role', async (t) => {
 
   // 3. Verify that invitee2 role is now forked
 
-  const invitee2RoleForked = await invitee1Project[kDataTypes].role.getByDocId(
-    invitee2.deviceId
-  )
+  const invitee2RoleForked = await invitee1Project[
+    kDataTypes
+  ].membership.getByDocId(invitee2.deviceId)
   t.is(invitee2RoleForked.forks.length, 1, 'invitee2 role has one fork')
 
   // 4. Assign role again, which should merge forked records
@@ -485,9 +485,9 @@ test('roles - assignRole() with forked role', async (t) => {
 
   await waitForSync(projects, 'initial')
 
-  const invitee2RoleMerged = await invitee1Project[kDataTypes].role.getByDocId(
-    invitee2.deviceId
-  )
+  const invitee2RoleMerged = await invitee1Project[
+    kDataTypes
+  ].membership.getByDocId(invitee2.deviceId)
   t.is(invitee2RoleMerged.forks.length, 0, 'invitee2 role has no forks')
 
   await disconnectPeers(managers)

@@ -214,7 +214,7 @@ export const ROLES = {
 }
 
 export class Roles {
-  #dataType
+  #membership
   #coreOwnership
   #coreManager
   #projectCreatorAuthCoreId
@@ -227,18 +227,24 @@ export class Roles {
    * @param {object} opts
    * @param {import('./datatype/index.js').DataType<
    *   import('./datastore/index.js').DataStore<'auth'>,
-   *   typeof import('./schema/project.js').roleTable,
-   *   'role',
-   *   import('@mapeo/schema').Role,
-   *   import('@mapeo/schema').RoleValue
-   * >} opts.dataType
+   *   typeof import('./schema/project.js').membershipTable,
+   *   'membership',
+   *   import('@mapeo/schema').Membership,
+   *   import('@mapeo/schema').MembershipValue
+   * >} opts.membership
    * @param {import('./core-ownership.js').CoreOwnership} opts.coreOwnership
    * @param {import('./core-manager/index.js').CoreManager} opts.coreManager
    * @param {Buffer} opts.projectKey
    * @param {Buffer} opts.deviceKey public key of this device
    */
-  constructor({ dataType, coreOwnership, coreManager, projectKey, deviceKey }) {
-    this.#dataType = dataType
+  constructor({
+    membership,
+    coreOwnership,
+    coreManager,
+    projectKey,
+    deviceKey,
+  }) {
+    this.#membership = membership
     this.#coreOwnership = coreOwnership
     this.#coreManager = coreManager
     this.#projectCreatorAuthCoreId = projectKey.toString('hex')
@@ -255,8 +261,8 @@ export class Roles {
     /** @type {string} */
     let roleId
     try {
-      const roleAssignment = await this.#dataType.getByDocId(deviceId)
-      roleId = roleAssignment.roleId
+      const membership = await this.#membership.getByDocId(deviceId)
+      roleId = membership.roleId
     } catch (e) {
       // The project creator will have the creator role
       const authCoreId = await this.#coreOwnership.getCoreId(deviceId, 'auth')
@@ -283,7 +289,7 @@ export class Roles {
    * @returns {Promise<Map<string, Role>>} Map of deviceId to Role
    */
   async getAll() {
-    const roles = await this.#dataType.getMany()
+    const memberships = await this.#membership.getMany()
     /** @type {Map<string, Role>} */
     const result = new Map()
     /** @type {undefined | string} */
@@ -300,17 +306,17 @@ export class Roles {
       // them in the returned map
     }
 
-    for (const role of roles) {
-      if (!isRoleId(role.roleId)) {
+    for (const member of memberships) {
+      if (!isRoleId(member.roleId)) {
         console.error("Found a value that wasn't a role ID")
         continue
       }
-      if (role.roleId === CREATOR_ROLE_ID) {
+      if (member.roleId === CREATOR_ROLE_ID) {
         console.error('Unexpected creator role')
         continue
       }
-      const deviceId = role.docId
-      result.set(deviceId, ROLES[role.roleId])
+      const deviceId = member.docId
+      result.set(deviceId, ROLES[member.roleId])
     }
     const includesSelf = result.has(this.#ownDeviceId)
     if (!includesSelf) {
@@ -369,22 +375,22 @@ export class Roles {
       }
     }
 
-    const existingRoleDoc = await this.#dataType
+    const existingMembershipDoc = await this.#membership
       .getByDocId(deviceId)
       .catch(() => null)
 
-    if (existingRoleDoc) {
-      await this.#dataType.update(
-        [existingRoleDoc.versionId, ...existingRoleDoc.forks],
+    if (existingMembershipDoc) {
+      await this.#membership.update(
+        [existingMembershipDoc.versionId, ...existingMembershipDoc.forks],
         {
-          schemaName: 'role',
+          schemaName: 'membership',
           roleId,
           fromIndex,
         }
       )
     } else {
-      await this.#dataType[kCreateWithDocId](deviceId, {
-        schemaName: 'role',
+      await this.#membership[kCreateWithDocId](deviceId, {
+        schemaName: 'membership',
         roleId,
         fromIndex,
       })

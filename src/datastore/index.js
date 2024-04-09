@@ -37,7 +37,7 @@ const NAMESPACE_SCHEMAS = /** @type {const} */ ({
     'deviceInfo',
     'icon',
   ],
-  auth: ['coreOwnership', 'role'],
+  auth: ['coreOwnership', 'membership'],
 })
 
 /**
