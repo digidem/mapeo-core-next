@@ -20,3 +20,6 @@ export const NAMESPACE_SCHEMAS = /** @type {const} */ ({
   ],
   auth: ['coreOwnership', 'role'],
 })
+
+// WARNING: This value is persisted. Be careful when changing it.
+export const DRIZZLE_MIGRATIONS_TABLE = '__mapeo_drizzle_migrations'

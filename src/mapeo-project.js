@@ -1,18 +1,23 @@
 import path from 'path'
+import * as fs from 'node:fs'
 import Database from 'better-sqlite3'
 import { decodeBlockPrefix, decode } from '@mapeo/schema'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { discoveryKey } from 'hypercore-crypto'
 import { TypedEmitter } from 'tiny-typed-emitter'
 
-import { NAMESPACES, NAMESPACE_SCHEMAS } from './constants.js'
+import {
+  NAMESPACES,
+  NAMESPACE_SCHEMAS,
+  DRIZZLE_MIGRATIONS_TABLE,
+} from './constants.js'
 import { CoreManager } from './core-manager/index.js'
 import { DataStore } from './datastore/index.js'
 import { DataType, kCreateWithDocId } from './datatype/index.js'
 import { BlobStore } from './blob-store/index.js'
 import { BlobApi } from './blob-api.js'
 import { IndexWriter } from './index-writer/index.js'
+import drizzleMigrate from './lib/drizzle-migrate.js'
 import { projectSettingsTable } from './schema/client.js'
 import {
   coreOwnershipTable,
@@ -37,6 +42,7 @@ import {
   LEFT_ROLE_ID,
 } from './roles.js'
 import {
+  ExhaustivenessError,
   assert,
   getDeviceId,
   projectKeyToId,
@@ -126,11 +132,45 @@ export class MapeoProject extends TypedEmitter {
     this.#projectId = projectKeyToId(projectKey)
 
     ///////// 1. Setup database
+
     this.#sqlite = new Database(dbPath)
     const db = drizzle(this.#sqlite)
-    migrate(db, { migrationsFolder: projectMigrationsFolder })
+    const migrationResult = drizzleMigrate(db, {
+      migrationsFolder: projectMigrationsFolder,
+      migrationsTable: DRIZZLE_MIGRATIONS_TABLE,
+    })
 
-    ///////// 2. Setup random-access-storage functions
+    const indexedTables = [
+      observationTable,
+      trackTable,
+      presetTable,
+      fieldTable,
+      coreOwnershipTable,
+      roleTable,
+      deviceInfoTable,
+      iconTable,
+      translationTable,
+    ]
+
+    ///////// 2. Wipe data if we need to re-index
+
+    switch (migrationResult) {
+      case 'no migration':
+      case 'migrated from scratch':
+        break
+      case 'migrated something':
+        fs.rmSync(INDEXER_STORAGE_FOLDER_NAME, {
+          force: true,
+          recursive: true,
+          maxRetries: 10,
+        })
+        for (const table of indexedTables) db.delete(table).run()
+        break
+      default:
+        throw new ExhaustivenessError(migrationResult)
+    }
+
+    ///////// 3. Setup random-access-storage functions
 
     /** @type {ConstructorParameters<typeof CoreManager>[0]['storage']} */
     const coreManagerStorage = (name) =>
@@ -140,7 +180,7 @@ export class MapeoProject extends TypedEmitter {
     const indexerStorage = (name) =>
       coreStorage(path.join(INDEXER_STORAGE_FOLDER_NAME, name))
 
-    ///////// 3. Create instances
+    ///////// 4. Create instances
 
     this.#coreManager = new CoreManager({
       projectSecretKey,
@@ -153,17 +193,7 @@ export class MapeoProject extends TypedEmitter {
     })
 
     this.#indexWriter = new IndexWriter({
-      tables: [
-        observationTable,
-        trackTable,
-        presetTable,
-        fieldTable,
-        coreOwnershipTable,
-        roleTable,
-        deviceInfoTable,
-        iconTable,
-        translationTable,
-      ],
+      tables: indexedTables,
       sqlite: this.#sqlite,
       getWinner,
       mapDoc: (doc, version) => {
@@ -342,7 +372,7 @@ export class MapeoProject extends TypedEmitter {
       table: translationTable,
     })
 
-    ///////// 4. Replicate local peers automatically
+    ///////// 5. Replicate local peers automatically
 
     // Replicate already connected local peers
     for (const peer of localPeers.peers) {
