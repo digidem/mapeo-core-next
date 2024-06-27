@@ -39,6 +39,7 @@ import {
 import {
   assert,
   getDeviceId,
+  keyToId,
   projectKeyToId,
   projectKeyToPublicId,
   valueOf,
@@ -51,6 +52,7 @@ import { readConfig } from './config-import.js'
 import TranslationApi from './translation-api.js'
 
 /** @typedef {Omit<import('@mapeo/schema').ProjectSettingsValue, 'schemaName'>} EditableProjectSettings */
+/** @typedef {(typeof import('./constants.js').NAMESPACES)[number]} Namespace */
 
 const CORESTORE_STORAGE_FOLDER_NAME = 'corestore'
 const INDEXER_STORAGE_FOLDER_NAME = 'indexer'
@@ -77,6 +79,7 @@ export class MapeoProject extends TypedEmitter {
   #dataTypes
   #blobStore
   #coreOwnership
+  /** @type {Roles} */
   #roles
   /** @ts-ignore */
   #ownershipWriteDone
@@ -154,6 +157,11 @@ export class MapeoProject extends TypedEmitter {
       storage: coreManagerStorage,
       db,
       logger: this.#l,
+      getSyncCapabilities: async ({ remotePublicKey }) => {
+        const peerDeviceId = keyToId(remotePublicKey)
+        const role = await this.#roles.getRole(peerDeviceId)
+        return role.sync
+      },
     })
 
     this.#indexWriter = new IndexWriter({

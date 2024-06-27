@@ -35,6 +35,14 @@ export function createCoreManager({
     storage: () => new RAM(),
     projectKey,
     autoDownload: false,
+    getSyncCapabilities: () =>
+      Promise.resolve({
+        auth: 'allowed',
+        config: 'allowed',
+        data: 'allowed',
+        blobIndex: 'allowed',
+        blob: 'allowed',
+      }),
     ...opts,
   })
 }

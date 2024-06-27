@@ -1,5 +1,6 @@
 import test from 'node:test'
 import { access, constants } from 'node:fs/promises'
+import { pEvent } from 'p-event'
 import NoiseSecretStream from '@hyperswarm/secret-stream'
 import Hypercore from 'hypercore'
 import RAM from 'random-access-memory'
@@ -388,6 +389,61 @@ test('sends "haves" bitfields over project creator core replication stream', asy
   n1.destroy()
   n2.destroy()
   await Promise.all([once(n1, 'close'), once(n2, 'close')])
+})
+
+test('only sends "haves" bitfields when recipient is allowed to receive them', async (t) => {
+  const projectKey = randomBytes(32)
+  const cm1 = createCoreManager({
+    projectKey,
+    getSyncCapabilities: () =>
+      Promise.resolve({
+        auth: 'allowed',
+        config: 'allowed',
+        data: 'blocked',
+        blobIndex: 'allowed',
+        blob: 'blocked',
+      }),
+  })
+  const cm2 = createCoreManager({ projectKey })
+
+  const cm2ReceivedHavesForNamespaces = new Set()
+  const cm2ReceivedHavesPromise = pEvent(cm2, 'peer-have', (namespace) => {
+    cm2ReceivedHavesForNamespaces.add(namespace)
+    return (
+      cm2ReceivedHavesForNamespaces.has('auth') &&
+      cm2ReceivedHavesForNamespaces.has('config')
+    )
+  })
+
+  const namespaces = /** @type {const} */ (['auth', 'blob', 'config', 'data'])
+  await Promise.all(
+    namespaces.map(async (namespace) => {
+      const cm1Core = cm1.getWriterCore(namespace).core
+      await cm1Core.ready()
+      await cm1Core.append(['block'])
+    })
+  )
+
+  const n1 = new NoiseSecretStream(true)
+  const n2 = new NoiseSecretStream(false)
+  t.after(async () => {
+    const closedPromise = Promise.all([once(n1, 'close'), once(n2, 'close')])
+    n1.destroy()
+    n2.destroy()
+    await closedPromise
+  })
+
+  n1.rawStream.pipe(n2.rawStream).pipe(n1.rawStream)
+  cm1[kCoreManagerReplicate](n1)
+  cm2[kCoreManagerReplicate](n2)
+
+  await cm2ReceivedHavesPromise
+
+  assert.deepEqual(
+    cm2ReceivedHavesForNamespaces,
+    new Set(['auth', 'config']),
+    'only allowed namespace "haves" are sent'
+  )
 })
 
 test('unreplicate', async (t) => {

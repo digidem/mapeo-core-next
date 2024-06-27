@@ -9,7 +9,7 @@ import Hypercore from 'hypercore'
 import { HaveExtension, ProjectExtension } from '../generated/extensions.js'
 import { Logger } from '../logger.js'
 import { NAMESPACES } from '../constants.js'
-import { keyToId, noop } from '../utils.js'
+import { ExhaustivenessError, keyToId, noop } from '../utils.js'
 import { coresTable } from '../schema/project.js'
 import * as rle from './bitfield-rle.js'
 import { CoreIndex } from './core-index.js'
@@ -27,6 +27,10 @@ export const kCoreManagerReplicate = Symbol('replicate core manager')
  * @property {(coreRecord: CoreRecord) => void} add-core
  * @property {(namespace: Namespace, msg: { coreDiscoveryId: string, peerId: string, start: number, bitfield: Uint32Array }) => void} peer-have
  */
+/**
+ * TODO: Use a more precise type.
+ * @typedef {any} Peer
+ */
 
 /**
  * @extends {TypedEmitter<Events>}
@@ -38,6 +42,7 @@ export class CoreManager extends TypedEmitter {
   #creatorCore
   #projectKey
   #queries
+  #getSyncCapabilities
   #encryptionKeys
   #projectExtension
   /** @type {'opened' | 'closing' | 'closed'} */
@@ -67,6 +72,7 @@ export class CoreManager extends TypedEmitter {
    * @param {Partial<Record<Namespace, Buffer>>} [options.encryptionKeys] Encryption keys for each namespace
    * @param {import('hypercore').HypercoreStorage} options.storage Folder to store all hypercore data
    * @param {boolean} [options.autoDownload=true] Immediately start downloading cores - should only be set to false for tests
+   * @param {(peer: Readonly<Peer>) => Promise<Record<Namespace, 'allowed' | 'blocked'>>} options.getSyncCapabilities
    * @param {Logger} [options.logger]
    */
   constructor({
@@ -77,6 +83,7 @@ export class CoreManager extends TypedEmitter {
     encryptionKeys = {},
     storage,
     autoDownload = true,
+    getSyncCapabilities,
     logger,
   }) {
     super()
@@ -96,6 +103,7 @@ export class CoreManager extends TypedEmitter {
     this.#projectKey = projectKey
     this.#encryptionKeys = encryptionKeys
     this.#autoDownload = autoDownload
+    this.#getSyncCapabilities = getSyncCapabilities
 
     // Pre-prepare SQL statement for better performance
     this.#queries = {
@@ -401,7 +409,7 @@ export class CoreManager extends TypedEmitter {
 
   /**
    * @param {ProjectExtension} msg
-   * @param {any} peer
+   * @param {Peer} peer
    */
   #handleProjectMessage({ wantCoreKeys, ...coreKeys }, peer) {
     const message = ProjectExtension.create()
@@ -426,7 +434,7 @@ export class CoreManager extends TypedEmitter {
 
   /**
    * @param {Omit<HaveMsg, 'namespace'> & { namespace: Namespace | 'UNRECOGNIZED' }} msg
-   * @param {any} peer
+   * @param {Peer} peer
    */
   #handleHaveMessage(msg, peer) {
     const { start, discoveryKey, bitfield, namespace } = msg
@@ -444,7 +452,7 @@ export class CoreManager extends TypedEmitter {
 
   /**
    *
-   * @param {any} peer
+   * @param {Peer} peer
    * @param {Iterable<{ core: Hypercore<Hypercore.ValueEncoding, Buffer>, namespace: Namespace }>} cores
    */
   async #sendHaves(peer, cores) {
@@ -454,9 +462,13 @@ export class CoreManager extends TypedEmitter {
       return
     }
 
+    const syncCapabilities = await this.#getSyncCapabilities(peer)
+
     peer.protomux.cork()
 
     for (const { core, namespace } of cores) {
+      if (!canSync(syncCapabilities, namespace)) continue
+
       // We want ready() rather than update() because we are only interested in local data
       await core.ready()
       const { discoveryKey } = core
@@ -640,7 +652,7 @@ function findPeer(core, publicKey, { timeout = 200 } = {}) {
 
     core.on('peer-add', onPeer)
 
-    /** @param {any} peer */
+    /** @param {Peer} peer */
     function onPeer(peer) {
       if (peer.remotePublicKey.equals(publicKey)) {
         clearTimeout(timeoutId)
@@ -649,4 +661,21 @@ function findPeer(core, publicKey, { timeout = 200 } = {}) {
       }
     }
   })
+}
+
+/**
+ * @param {Record<Namespace, 'allowed' | 'blocked'>} syncCapabilities
+ * @param {Namespace} namespace
+ * @returns {boolean}
+ */
+function canSync(syncCapabilities, namespace) {
+  const syncCapability = syncCapabilities[namespace]
+  switch (syncCapability) {
+    case 'allowed':
+      return true
+    case 'blocked':
+      return false
+    default:
+      throw new ExhaustivenessError(syncCapability)
+  }
 }
