@@ -152,6 +152,12 @@ export class MapeoProject extends TypedEmitter {
       storage: coreManagerStorage,
       db,
       logger: this.#l,
+      /**
+       * TODO: can these types be simplified?
+       * @param {Parameters<typeof Roles.prototype.getRole>} args
+       * @returns {Promise<import('./roles.js').Role>}
+       */
+      getRole: (...args) => this.#roles.getRole(...args),
     })
 
     this.#indexWriter = new IndexWriter({
@@ -283,6 +289,7 @@ export class MapeoProject extends TypedEmitter {
       coreKeypairs,
       identityKeypair,
     })
+
     this.#roles = new Roles({
       dataType: this.#dataTypes.role,
       coreOwnership: this.#coreOwnership,

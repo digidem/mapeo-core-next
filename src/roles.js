@@ -1,7 +1,8 @@
 import { currentSchemaVersions } from '@mapeo/schema'
 import mapObject from 'map-obj'
+import { pEvent } from 'p-event'
 import { kCreateWithDocId } from './datatype/index.js'
-import { assert, setHas } from './utils.js'
+import { assert, noop, setHas } from './utils.js'
 
 // Randomly generated 8-byte encoded as hex
 export const CREATOR_ROLE_ID = 'a12a6702b93bd7ff'
@@ -249,29 +250,35 @@ export class Roles {
    * Get the role for device `deviceId`.
    *
    * @param {string} deviceId
+   * @param {object} [options]
+   * @param {number} [options.timeout] TODO docs
    * @returns {Promise<Role>}
    */
-  async getRole(deviceId) {
-    /** @type {string} */
-    let roleId
-    try {
-      const roleAssignment = await this.#dataType.getByDocId(deviceId)
-      roleId = roleAssignment.roleId
-    } catch (e) {
-      // The project creator will have the creator role
-      const authCoreId = await this.#coreOwnership.getCoreId(deviceId, 'auth')
-      if (authCoreId === this.#projectCreatorAuthCoreId) {
-        return CREATOR_ROLE
-      } else {
-        // When no role assignment exists, e.g. a newly added device which has
-        // not yet synced role records.
-        return NO_ROLE
-      }
+  async getRole(deviceId, options = {}) {
+    const roleId = await this.#dataType
+      .getByDocId(deviceId)
+      .then((roleAssignment) => roleAssignment.roleId)
+      .catch(noop)
+
+    if (roleId) return ROLES[isRoleId(roleId) ? roleId : BLOCKED_ROLE_ID]
+
+    // The project creator will have the creator role
+    const authCoreId = await this.#coreOwnership.getCoreId(deviceId, 'auth')
+    if (authCoreId === this.#projectCreatorAuthCoreId) {
+      return CREATOR_ROLE
     }
-    if (!isRoleId(roleId)) {
-      return ROLES[BLOCKED_ROLE_ID]
+
+    const { timeout } = options
+    if (typeof timeout === 'number') {
+      const roles = await pEvent(this.#dataType, 'updated-docs', {
+        timeout,
+        filter: (roles) => roles.some((role) => role.docId === deviceId),
+      }).catch(() => [])
+      const roleId = roles.find((role) => role.docId === deviceId)?.roleId
+      if (roleId) return ROLES[isRoleId(roleId) ? roleId : BLOCKED_ROLE_ID]
     }
-    return ROLES[roleId]
+
+    return NO_ROLE
   }
 
   /**

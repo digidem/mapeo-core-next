@@ -9,6 +9,7 @@ import RAM from 'random-access-memory'
 import NoiseSecretStream from '@hyperswarm/secret-stream'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { COORDINATOR_ROLE_ID, ROLES } from '../../src/roles.js'
 /** @typedef {(typeof import('../../src/constants.js').NAMESPACES)[number]} Namespace */
 
 /**
@@ -35,6 +36,7 @@ export function createCoreManager({
     storage: () => new RAM(),
     projectKey,
     autoDownload: false,
+    getRole: () => Promise.resolve(ROLES[COORDINATOR_ROLE_ID]),
     ...opts,
   })
 }
