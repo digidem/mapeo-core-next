@@ -159,9 +159,9 @@ test('CRUD operations', async (t) => {
         'createdAt does not change'
       )
       assert.equal(
-        written.createdBy,
-        updated.createdBy,
-        'createdBy does not change'
+        written.originalVersionId,
+        updated.originalVersionId,
+        'originalVersionId does not change'
       )
     })
     await t.test('getMany', async () => {

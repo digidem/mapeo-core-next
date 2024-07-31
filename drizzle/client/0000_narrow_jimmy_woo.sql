@@ -18,9 +18,9 @@ CREATE TABLE `projectKeys` (
 CREATE TABLE `projectSettings` (
 	`docId` text PRIMARY KEY NOT NULL,
 	`versionId` text NOT NULL,
+	`originalVersionId` text NOT NULL,
 	`schemaName` text NOT NULL,
 	`createdAt` text NOT NULL,
-	`createdBy` text NOT NULL,
 	`updatedAt` text NOT NULL,
 	`links` text NOT NULL,
 	`deleted` integer NOT NULL,

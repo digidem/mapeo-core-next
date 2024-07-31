@@ -10,10 +10,10 @@ import { discoveryKey } from 'hypercore-crypto'
 /** @type {Omit<import('@mapeo/schema').Observation, 'versionId'>} */
 const obs = {
   docId: 'abc',
+  originalVersionId: 'abc/123',
   links: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
-  createdBy: 'def',
   schemaName: 'observation',
   refs: [],
   tags: {},

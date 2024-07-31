@@ -559,20 +559,6 @@ export class MapeoProject extends TypedEmitter {
   }
 
   /**
-   * @param {string} createdBy The `createdBy` value from a document.
-   * @returns {Promise<string>} The device ID for this creator.
-   * @throws When device ID cannot be found.
-   */
-  async $createdByToDeviceId(createdBy) {
-    const discoveryKey = Buffer.from(createdBy, 'hex')
-    const coreId = this.#coreManager
-      .getCoreByDiscoveryKey(discoveryKey)
-      ?.key.toString('hex')
-    if (!coreId) throw new Error('NotFound')
-    return this.#coreOwnership.getOwner(coreId)
-  }
-
-  /**
    * Replicate a project to a @hyperswarm/secret-stream. Invites will not
    * function because the RPC channel is not connected for project replication,
    * and only this project will replicate (to replicate multiple projects you

@@ -19,12 +19,21 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { randomBytes } from 'crypto'
 import TranslationApi from '../src/translation-api.js'
 import { getProperty } from 'dot-prop'
-import { decode, decodeBlockPrefix } from '@mapeo/schema'
+import { decode, decodeBlockPrefix, parseVersionId } from '@mapeo/schema'
 
 /** @type {import('@mapeo/schema').ObservationValue} */
 const obsFixture = {
   schemaName: 'observation',
   refs: [],
+  tags: {},
+  attachments: [],
+  metadata: {},
+}
+
+/** @type {import('@mapeo/schema').ObservationValue} */
+const newObsFixture = {
+  schemaName: 'observation',
+  refs: [{ id: randomBytes(32).toString('hex') }],
   tags: {},
   attachments: [],
   metadata: {},
@@ -101,22 +110,52 @@ test('private createWithDocId() method throws when doc exists', async () => {
   )
 })
 
-test('test validity of `createdBy` field', async () => {
-  const projectKey = randomBytes(32)
-  const { dataType: dt1, dataStore: ds1 } = await testenv({ projectKey })
+test('`originalVersionId` field', async () => {
+  const { dataType, dataStore } = await testenv()
 
-  const customId = randomBytes(8).toString('hex')
-  const obs = await dt1[kCreateWithDocId](customId, obsFixture)
-  const createdBy = crypto.discoveryKey(ds1.writerCore.key).toString('hex')
-
+  const obs = await dataType.create(obsFixture)
   assert.equal(
-    obs.createdBy,
-    createdBy,
-    'createdBy should be generated from the DataStore writerCore discoveryKey'
+    obs.versionId,
+    obs.originalVersionId,
+    'newly-created documents are the originals'
+  )
+
+  const actualDiscoveryKey = parseVersionId(
+    obs.originalVersionId
+  ).coreDiscoveryKey
+  const expectedDiscoveryKey = crypto.discoveryKey(dataStore.writerCore.key)
+  assert.deepEqual(
+    actualDiscoveryKey,
+    expectedDiscoveryKey,
+    "original version ID has the author's core discovery key"
+  )
+
+  const updatedObs = await dataType.update(obs.versionId, newObsFixture)
+  assert.notEqual(
+    updatedObs.versionId,
+    obs.originalVersionId,
+    'updated documents change their version IDs...'
+  )
+  assert.equal(
+    updatedObs.originalVersionId,
+    obs.originalVersionId,
+    '...but not their original version IDs'
+  )
+
+  const deletedObs = await dataType.delete(updatedObs.docId)
+  assert.notEqual(
+    deletedObs.versionId,
+    obs.originalVersionId,
+    'deleted documents change their version IDs...'
+  )
+  assert.equal(
+    deletedObs.originalVersionId,
+    obs.originalVersionId,
+    '...but not their original version IDs'
   )
 })
 
-test('test validity of `createdBy` field from another peer', async () => {
+test('validity of `originalVersionId` from another peer', async () => {
   const projectKey = randomBytes(32)
   const {
     coreManager: cm1,
@@ -135,20 +174,11 @@ test('test validity of `createdBy` field from another peer', async () => {
   await replicatedCore.download({ end: replicatedCore.length }).done()
   const replicatedObservation = await dt2.getByVersionId(obs.versionId)
 
-  const createdBy = crypto.discoveryKey(ds1.writerCore.key).toString('hex')
-  assert.equal(replicatedObservation.createdBy, createdBy)
+  assert.equal(replicatedObservation.originalVersionId, obs.originalVersionId)
 
-  /** @type {import('@mapeo/schema').ObservationValue} */
-  const newObsFixture = {
-    schemaName: 'observation',
-    refs: [{ id: randomBytes(32).toString('hex') }],
-    tags: {},
-    attachments: [],
-    metadata: {},
-  }
   const updatedDoc = await dt2.update(obs.versionId, newObsFixture)
   const updatedObservation = await dt2.getByVersionId(updatedDoc.versionId)
-  assert.equal(updatedObservation.createdBy, createdBy)
+  assert.equal(updatedObservation.originalVersionId, obs.originalVersionId)
   await destroy()
 })
 
@@ -254,7 +284,7 @@ test('translation', async () => {
  * @param {object} opts
  * @param {Buffer} [opts.projectKey]
  */
-async function testenv(opts) {
+async function testenv(opts = {}) {
   const sqlite = new Database(':memory:')
   const db = drizzle(sqlite)
   migrate(db, {

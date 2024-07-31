@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "sqlite",
-  "id": "08c3a557-a1c3-4b8f-acbc-a3ea6f43682f",
+  "id": "c8e57ac0-12f0-4505-a095-c7241d55150c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "localDeviceInfo": {
@@ -113,6 +113,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "originalVersionId": {
+          "name": "originalVersionId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "schemaName": {
           "name": "schemaName",
           "type": "text",
@@ -122,13 +129,6 @@
         },
         "createdAt": {
           "name": "createdAt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "createdBy": {
-          "name": "createdBy",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
