@@ -20,3 +20,5 @@ export const NAMESPACE_SCHEMAS = /** @type {const} */ ({
   ],
   auth: ['coreOwnership', 'role'],
 })
+
+export const SUPPORTED_CONFIG_VERSION = 1

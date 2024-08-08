@@ -72,6 +72,46 @@ test('config import - loading', async () => {
     'fields field in presets.json is not an object'
   )
 
+  await assert.rejects(
+    async () => await readConfig('./tests/fixtures/config/missingMetadata.zip'),
+    /Zip file does not contain metadata.json/,
+    ''
+  )
+
+  await assert.rejects(
+    async () => await readConfig('./tests/fixtures/config/invalidMetadata.zip'),
+    /Could not parse metadata.json/,
+    ''
+  )
+
+  await assert.rejects(
+    async () =>
+      await readConfig('./tests/fixtures/config/invalidMetadataKey.zip'),
+    /Error: Invalid structure of metadata file/,
+    ''
+  )
+
+  await assert.rejects(
+    async () =>
+      await readConfig('./tests/fixtures/config/invalidMetadataKey2.zip'),
+    /Error: Invalid structure of metadata file/,
+    ''
+  )
+
+  await assert.rejects(
+    async () =>
+      await readConfig('./tests/fixtures/config/invalidMetadataValue.zip'),
+    /Error: Invalid structure of metadata file/,
+    ''
+  )
+
+  await assert.rejects(
+    async () =>
+      await readConfig('./tests/fixtures/config/invalidMetadataValue2.zip'),
+    /Error: Invalid structure of metadata file/,
+    ''
+  )
+
   assert(
     await readConfig('./tests/fixtures/config/validConfig.zip'),
     'valid zip'
@@ -115,7 +155,6 @@ test('config import - icons', async () => {
   config = await readConfig('./tests/fixtures/config/invalidIconSize.zip')
 
   await arrayFrom(config.icons())
-
   assert.equal(
     config.warnings.length,
     1,
@@ -144,7 +183,6 @@ test('config import - icons', async () => {
 
 test('config import - fields', async () => {
   let config = await readConfig('./tests/fixtures/config/invalidField.zip')
-
   arrayFrom(config.fields())
   assert.equal(config.warnings.length, 3, 'we got 3 errors when reading fields')
   assert(
@@ -175,7 +213,6 @@ test('config import - fields', async () => {
 
 test('config import - presets', async () => {
   let config = await readConfig('./tests/fixtures/config/invalidPreset.zip')
-
   arrayFrom(config.presets())
   assert.equal(
     config.warnings.length,

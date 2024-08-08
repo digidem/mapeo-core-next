@@ -106,7 +106,7 @@
   "homepage": "https://github.com/digidem/mapeo-core#readme",
   "devDependencies": {
     "@bufbuild/buf": "^1.26.1",
-    "@mapeo/default-config": "4.0.0-alpha.5",
+    "@mapeo/default-config": "4.0.0-alpha.6",
     "@mapeo/mock-data": "^1.0.3-alpha.1",
     "@sinonjs/fake-timers": "^10.0.2",
     "@types/b4a": "^1.6.0",
