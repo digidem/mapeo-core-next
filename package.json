@@ -8,8 +8,9 @@
   "scripts": {
     "lint": "eslint --cache .",
     "format": "prettier . --write",
-    "test": "npm-run-all lint test:prettier build:types type test:unit test:e2e test:types",
+    "test": "npm-run-all lint test:prettier build:types type test:buildConfigs test:unit test:e2e test:types",
     "test:prettier": "prettier --check .",
+    "test:buildConfigs": "node scripts/build-config-fixtures.js",
     "test:unit": "node --test tests/*.js tests/**/*.js",
     "test:e2e": "node --test test-e2e/*.js test-e2e/**/*.js",
     "test:types": "tsc -p test-types/tsconfig.json",
@@ -147,7 +148,8 @@
     "typedoc": "^0.25.13",
     "typedoc-plugin-markdown": "^3.17.1",
     "typedoc-plugin-missing-exports": "^2.2.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "yazl": "^2.5.1"
   },
   "dependencies": {
     "@digidem/types": "^2.3.0",

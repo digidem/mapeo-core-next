@@ -8,3 +8,4 @@ proto/build
 !/drizzle/**/*.sql
 .eslintcache
 docs/api/html/*
+test/fixtures/config/*.zip
