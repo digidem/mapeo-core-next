@@ -14,6 +14,8 @@ import { coresTable } from '../schema/project.js'
 import * as rle from './bitfield-rle.js'
 import { CoreIndex } from './core-index.js'
 
+/** @typedef {import('../types.js').HypercorePeer} HypercorePeer */
+
 const WRITER_CORE_PREHAVES_DEBOUNCE_DELAY = 1000
 
 export const kCoreManagerReplicate = Symbol('replicate core manager')
@@ -401,7 +403,7 @@ export class CoreManager extends TypedEmitter {
 
   /**
    * @param {ProjectExtension} msg
-   * @param {any} peer
+   * @param {HypercorePeer} peer
    */
   #handleProjectMessage({ wantCoreKeys, ...coreKeys }, peer) {
     const message = ProjectExtension.create()
@@ -426,7 +428,7 @@ export class CoreManager extends TypedEmitter {
 
   /**
    * @param {Omit<HaveMsg, 'namespace'> & { namespace: Namespace | 'UNRECOGNIZED' }} msg
-   * @param {any} peer
+   * @param {HypercorePeer} peer
    */
   #handleHaveMessage(msg, peer) {
     const { start, discoveryKey, bitfield, namespace } = msg
@@ -444,7 +446,7 @@ export class CoreManager extends TypedEmitter {
 
   /**
    *
-   * @param {any} peer
+   * @param {HypercorePeer} peer
    * @param {Iterable<{ core: Hypercore<Hypercore.ValueEncoding, Buffer>, namespace: Namespace }>} cores
    */
   async #sendHaves(peer, cores) {
@@ -639,7 +641,7 @@ function findPeer(core, publicKey, { timeout = 200 } = {}) {
 
     core.on('peer-add', onPeer)
 
-    /** @param {any} peer */
+    /** @param {HypercorePeer} peer */
     function onPeer(peer) {
       if (peer.remotePublicKey.equals(publicKey)) {
         clearTimeout(timeoutId)

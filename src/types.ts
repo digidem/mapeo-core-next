@@ -7,6 +7,7 @@ import type {
 } from 'type-fest'
 import { SUPPORTED_BLOB_VARIANTS } from './blob-store/index.js'
 import { MapeoCommon, MapeoDoc, MapeoValue, decode } from '@mapeo/schema'
+import type BigSparseArray from 'big-sparse-array'
 import type Protomux from 'protomux'
 import type NoiseStream from '@hyperswarm/secret-stream'
 import { Duplex } from 'streamx'
@@ -104,6 +105,30 @@ export type PublicKey = Buffer
 /** 32 byte buffer */
 export type SecretKey = Buffer
 export type IdentityKeyPair = KeyPair
+
+type HypercoreRemoteBitfieldPage = {
+  bitfield: Uint32Array
+}
+
+/**
+ * A subset of Hypercore's `RemoteBitfield` class that we use.
+ */
+export type HypercoreRemoteBitfield = {
+  _pages: BigSparseArray<HypercoreRemoteBitfieldPage>
+  get(index: number): boolean
+}
+
+/**
+ * A subset of Hypercore's `Peer` class that we use.
+ * TODO: Contribute these types upstream.
+ */
+export type HypercorePeer = {
+  protomux: Protomux
+  remotePublicKey: Buffer
+  remoteBitfield: HypercoreRemoteBitfield
+  onbitfield: (options: { start: number; bitfield: Buffer }) => void
+  onrange: (options: { drop: boolean; start: number; length: number }) => void
+}
 
 export { NoiseStream }
 type ProtocolStream = Omit<NoiseStream, 'userData'> & {

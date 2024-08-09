@@ -2,6 +2,8 @@ import { keyToId } from '../utils.js'
 import RemoteBitfield, {
   BITS_PER_PAGE,
 } from '../core-manager/remote-bitfield.js'
+/** @typedef {import('../types.js').HypercoreRemoteBitfield} HypercoreRemoteBitfield */
+/** @typedef {import('../types.js').HypercorePeer} HypercorePeer */
 
 /**
  * @typedef {RemoteBitfield} Bitfield
@@ -192,7 +194,7 @@ export class CoreSyncState {
    * emit state updates whenever the peer remote bitfield changes
    *
    * (defined as class field to bind to `this`)
-   * @param {any} peer
+   * @param {HypercorePeer} peer
    */
   #onPeerAdd = (peer) => {
     const peerId = keyToId(peer.remotePublicKey)
@@ -217,11 +219,11 @@ export class CoreSyncState {
     // a result of these two internal calls.
     const originalOnBitfield = peer.onbitfield
     const originalOnRange = peer.onrange
-    peer.onbitfield = (/** @type {any[]} */ ...args) => {
+    peer.onbitfield = (...args) => {
       originalOnBitfield.apply(peer, args)
       this.#update()
     }
-    peer.onrange = (/** @type {any[]} */ ...args) => {
+    peer.onrange = (...args) => {
       originalOnRange.apply(peer, args)
       this.#update()
     }
@@ -231,7 +233,7 @@ export class CoreSyncState {
    * Handle a peer being removed - keeps it in state, but sets state.connected = false
    *
    * (defined as class field to bind to `this`)
-   * @param {any} peer
+   * @param {HypercorePeer} peer
    */
   #onPeerRemove = (peer) => {
     const peerId = keyToId(peer.remotePublicKey)
@@ -253,7 +255,7 @@ export class CoreSyncState {
 export class PeerState {
   /** @type {Bitfield} */
   #preHaves = new RemoteBitfield()
-  /** @type {Bitfield | undefined} */
+  /** @type {HypercoreRemoteBitfield | undefined} */
   #haves
   /** @type {Bitfield} */
   #wants = new RemoteBitfield()
@@ -274,7 +276,7 @@ export class PeerState {
     return this.#preHaves.insert(start, bitfield)
   }
   /**
-   * @param {Bitfield} bitfield
+   * @param {HypercoreRemoteBitfield} bitfield
    */
   setHavesBitfield(bitfield) {
     this.#haves = bitfield
@@ -434,7 +436,7 @@ export function bitCount32(n) {
 /**
  * Get a 32-bit "chunk" (word) of the bitfield.
  *
- * @param {RemoteBitfield} bitfield
+ * @param {Bitfield | HypercoreRemoteBitfield} bitfield
  * @param {number} index
  */
 function getBitfieldWord(bitfield, index) {
