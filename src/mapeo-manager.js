@@ -49,10 +49,11 @@ import {
   kRescindFullStopRequest,
 } from './sync/sync-api.js'
 /** @import { ProjectSettingsValue as ProjectValue } from '@comapeo/schema' */
-/** @import { SetNonNullable } from 'type-fest' */
+/** @import { ReadonlyDeep, SetNonNullable } from 'type-fest' */
 /** @import { CoreStorage, Namespace } from './types.js' */
 /** @import { DeviceInfoParam } from './schema/client.js' */
 /** @import { OpenedNoiseStream } from './lib/noise-secret-stream-helpers.js' */
+/** @import { State as SyncStateState } from './sync/sync-state.js' */
 
 /** @typedef {SetNonNullable<ProjectKeys, 'encryptionKeys'>} ValidatedProjectKeys */
 
@@ -654,25 +655,14 @@ export class MapeoManager extends TypedEmitter {
       project.$getOwnRole(),
       project.$getProjectSettings(),
     ])
-    const {
-      auth: { localState: authState },
-      config: { localState: configState },
-    } = project.$sync[kSyncState].getState()
+    const syncState = project.$sync[kSyncState].getState()
     const isRoleSynced = ownRole !== Roles.NO_ROLE
     const isProjectSettingsSynced =
       projectSettings !== MapeoProject.EMPTY_PROJECT_SETTINGS
-    // Assumes every project that someone is invited to has at least one record
-    // in the auth store - the row record for the invited device
-    const isAuthSynced = authState.want === 0 && authState.have > 0
-    // Assumes every project that someone is invited to has at least one record
-    // in the config store - defining the name of the project.
-    // TODO: Enforce adding a project name in the invite method
-    const isConfigSynced = configState.want === 0 && configState.have > 0
     if (
       isRoleSynced &&
       isProjectSettingsSynced &&
-      isAuthSynced &&
-      isConfigSynced
+      isSyncStateDoneWithInitialSync(syncState)
     ) {
       return true
     }
@@ -680,7 +670,7 @@ export class MapeoManager extends TypedEmitter {
       /** @param {import('./sync/sync-state.js').State} syncState */
       const onSyncState = (syncState) => {
         clearTimeout(timeoutId)
-        if (syncState.auth.dataToSync || syncState.config.dataToSync) {
+        if (!isSyncStateDoneWithInitialSync(syncState)) {
           timeoutId = setTimeout(onTimeout, timeoutMs)
           return
         }
@@ -868,6 +858,31 @@ export class MapeoManager extends TypedEmitter {
     await pTimeout(this.#fastify.ready(), { milliseconds: 1000 })
     return this.#fastify.mapeoMaps.getStyleJsonUrl()
   }
+}
+
+/**
+ * Is the sync state done with initial sync?
+ *
+ * Assumes every project that someone is invited to has at least one record in
+ * the auth store (a record for the invited device) and the config store (the
+ * project name).
+ *
+ * @param {ReadonlyDeep<SyncStateState>} syncState
+ * @returns {boolean}
+ */
+function isSyncStateDoneWithInitialSync(syncState) {
+  return (
+    isNamespaceDoneWithInitialSync(syncState.auth.localState) &&
+    isNamespaceDoneWithInitialSync(syncState.config.localState)
+  )
+}
+
+/**
+ * @param {ReadonlyDeep<{ have: number, want: number }>} namespaceSyncState
+ * @returns {boolean}
+ */
+function isNamespaceDoneWithInitialSync({ want, have }) {
+  return want === 0 && have > 0
 }
 
 // We use the `protomux` property of connected peers internally, but we don't
