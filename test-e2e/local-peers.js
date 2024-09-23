@@ -6,7 +6,7 @@ test('Local peers discovery each other and share device info', async (t) => {
   const mobileManagers = await createManagers(5, t, 'mobile')
   const desktopManagers = await createManagers(5, t, 'desktop')
   const managers = [...mobileManagers, ...desktopManagers]
-  const disconnectPeers = connectPeers(managers, { discovery: true })
+  const disconnectPeers = connectPeers(managers)
   t.after(disconnectPeers)
   await waitForPeers(managers, { waitForDeviceInfo: true })
   const deviceInfos = [...mobileManagers, ...desktopManagers].map((m) =>

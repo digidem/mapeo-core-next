@@ -85,7 +85,7 @@ test('sync fuzz tests', { concurrency: true, timeout: 2 ** 30 }, async (t) => {
         const managers = await createManagers(managerCount, t)
         const [invitor, ...invitees] = managers
 
-        const disconnect = connectPeers(managers, { discovery: false })
+        const disconnect = connectPeers(managers)
         t.after(disconnect)
 
         const projectId = await invitor.createProject({ name: 'Mapeo' })
