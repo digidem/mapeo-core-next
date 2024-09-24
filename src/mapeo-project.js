@@ -61,7 +61,6 @@ export const kCoreManager = Symbol('coreManager')
 export const kCoreOwnership = Symbol('coreOwnership')
 export const kSetOwnDeviceInfo = Symbol('kSetOwnDeviceInfo')
 export const kBlobStore = Symbol('blobStore')
-export const kProjectReplicate = Symbol('replicate project')
 export const kDataTypes = Symbol('dataTypes')
 export const kProjectLeave = Symbol('leave project')
 export const kClearDataIfLeft = Symbol('clear data if left project')
@@ -573,29 +572,6 @@ export class MapeoProject extends TypedEmitter {
       ?.key.toString('hex')
     if (!coreId) throw new Error('NotFound')
     return this.#coreOwnership.getOwner(coreId)
-  }
-
-  /**
-   * Replicate a project to a @hyperswarm/secret-stream. Invites will not
-   * function because the RPC channel is not connected for project replication,
-   * and only this project will replicate (to replicate multiple projects you
-   * need to replicate the manager instance via manager[kManagerReplicate])
-   *
-   * @param {Parameters<import('hypercore')['replicate']>[0]} stream A duplex stream, a @hyperswarm/secret-stream, or a Protomux instance
-   */
-  [kProjectReplicate](stream) {
-    // @ts-expect-error - hypercore types need updating
-    const replicationStream = this.#coreManager.creatorCore.replicate(stream, {
-      // @ts-ignore - hypercore types do not currently include this option
-      ondiscoverykey: async (discoveryKey) => {
-        const protomux =
-          /** @type {import('protomux')<import('@hyperswarm/secret-stream')>} */ (
-            replicationStream.noiseStream.userData
-          )
-        this.#syncApi[kHandleDiscoveryKey](discoveryKey, protomux)
-      },
-    })
-    return replicationStream
   }
 
   /**

@@ -35,7 +35,7 @@ test('Create and sync data', { timeout: 100_000 }, async (t) => {
   const COUNT = 10
   const managers = await createManagers(COUNT, t)
   const [invitor, ...invitees] = managers
-  const disconnect = connectPeers(managers, { discovery: false })
+  const disconnect = connectPeers(managers)
   const projectId = await invitor.createProject({ name: 'Mapeo' })
   await invite({ invitor, invitees, projectId })
   await disconnect()
@@ -50,7 +50,7 @@ test('Create and sync data', { timeout: 100_000 }, async (t) => {
     return acc
   }, new Set())
 
-  const disconnectPeers = connectPeers(managers, { discovery: false })
+  const disconnectPeers = connectPeers(managers)
   t.after(disconnectPeers)
   await waitForSync(projects, 'initial')
 
@@ -125,7 +125,7 @@ test('syncing blobs', async (t) => {
     fastifyController.start(),
   ])
 
-  let disconnectPeers = connectPeers(managers, { discovery: false })
+  let disconnectPeers = connectPeers(managers)
   t.after(() => disconnectPeers())
   const projectId = await invitor.createProject({ name: 'Mapeo' })
   await invite({ invitor, invitees: [invitee], projectId })
@@ -147,7 +147,7 @@ test('syncing blobs', async (t) => {
     blobMetadata({ mimeType: 'image/jpeg' })
   )
 
-  disconnectPeers = connectPeers(managers, { discovery: false })
+  disconnectPeers = connectPeers(managers)
   await waitForSync(projects, 'initial')
 
   invitorProject.$sync.start()
@@ -174,7 +174,7 @@ test('start and stop sync', async function (t) {
   const COUNT = 2
   const managers = await createManagers(COUNT, t)
   const [invitor, ...invitees] = managers
-  const disconnect = connectPeers(managers, { discovery: false })
+  const disconnect = connectPeers(managers)
   const projectId = await invitor.createProject({ name: 'Mapeo' })
   await invite({ invitor, invitees, projectId })
 
@@ -240,7 +240,7 @@ test('sync only happens if both sides are enabled', async (t) => {
   const managers = await createManagers(2, t)
   const [invitor, ...invitees] = managers
 
-  const disconnect = connectPeers(managers, { discovery: false })
+  const disconnect = connectPeers(managers)
   t.after(disconnect)
 
   const projectId = await invitor.createProject({ name: 'Mapeo' })
@@ -310,7 +310,7 @@ test('auto-stop', async (t) => {
   ])
   t.after(() => fastifyController.stop())
 
-  const disconnect = connectPeers(managers, { discovery: false })
+  const disconnect = connectPeers(managers)
   t.after(disconnect)
 
   const projectId = await invitor.createProject({ name: 'mapeo' })
@@ -472,7 +472,7 @@ test('disabling auto-stop timeout', async (t) => {
   const managers = await createManagers(2, t)
   const [invitor, ...invitees] = managers
 
-  const disconnect = connectPeers(managers, { discovery: false })
+  const disconnect = connectPeers(managers)
   t.after(disconnect)
 
   const projectId = await invitor.createProject({ name: 'mapeo' })
@@ -531,7 +531,7 @@ test('gracefully shutting down sync for all projects when backgrounded', async f
   const managers = await createManagers(2, t)
   const [invitor, ...invitees] = managers
 
-  const disconnect = connectPeers(managers, { discovery: false })
+  const disconnect = connectPeers(managers)
   t.after(disconnect)
 
   const projectGroupsAfterFirstStep = await Promise.all(
@@ -625,7 +625,7 @@ test('shares cores', async function (t) {
   const COUNT = 5
   const managers = await createManagers(COUNT, t)
   const [invitor, ...invitees] = managers
-  const disconnectPeers = connectPeers(managers, { discovery: false })
+  const disconnectPeers = connectPeers(managers)
   t.after(disconnectPeers)
   const projectId = await invitor.createProject({ name: 'Mapeo' })
   await invite({ invitor, invitees, projectId })
@@ -670,7 +670,7 @@ test('no sync capabilities === no namespaces sync apart from auth', async (t) =>
   const COUNT = 3
   const managers = await createManagers(COUNT, t)
   const [invitor, invitee, blocked] = managers
-  const disconnect1 = connectPeers(managers, { discovery: false })
+  const disconnect1 = connectPeers(managers)
   const projectId = await invitor.createProject({ name: 'Mapeo' })
   await invite({
     invitor,
@@ -741,8 +741,9 @@ test('Sync state emitted when starting and stopping sync', async function (t) {
   /** @type {State[]} */ let states = statesBeforeStart
   project.$sync.on('sync-state', (state) => states.push(state))
 
-  const disconnect = connectPeers(managers, { discovery: false })
+  const disconnect = connectPeers(managers)
   t.after(disconnect)
+  await waitForPeers(managers)
   await invite({ invitor, invitees, projectId })
 
   /** @type {State[]} */ const statesAfterStart = []
@@ -798,8 +799,9 @@ test('updates sync state when peers are added', async (t) => {
     'data sync state is correct at start'
   )
 
-  const disconnectPeers = connectPeers(managers, { discovery: false })
+  const disconnectPeers = connectPeers(managers)
   t.after(disconnectPeers)
+  await waitForPeers(managers)
   await invite({ invitor, invitees, projectId })
 
   assert.deepEqual(
@@ -824,8 +826,9 @@ test('Correct sync state prior to data sync', async function (t) {
   const [invitor, ...invitees] = managers
   const projectId = await invitor.createProject({ name: 'Mapeo' })
 
-  const disconnect1 = connectPeers(managers, { discovery: false })
+  const disconnect1 = connectPeers(managers)
 
+  await waitForPeers(managers)
   await invite({ invitor, invitees, projectId })
 
   const projects = await Promise.all(
@@ -838,7 +841,7 @@ test('Correct sync state prior to data sync', async function (t) {
   // Disconnect and reconnect, because currently pre-have messages about data
   // sync state are only shared on first connection
   await disconnect1()
-  const disconnect2 = connectPeers(managers, { discovery: false })
+  const disconnect2 = connectPeers(managers)
   await waitForPeers(managers)
 
   const expected = managers.map((manager, index) => {
@@ -891,6 +894,7 @@ test('pre-haves are updated', async (t) => {
   t.after(disconnect)
 
   const projectId = await invitor.createProject({ name: 'Mapeo' })
+  await waitForPeers(managers)
   await invite({ invitor, invitees, projectId })
   const projects = await Promise.all(
     managers.map((m) => m.getProject(projectId))
@@ -964,6 +968,7 @@ test('data sync state is properly updated as data sync is enabled and disabled',
     'initial sync is enabled for local device'
   )
 
+  await waitForPeers(managers)
   await invite({ invitor, invitees, projectId })
   const inviteesProjects = await Promise.all(
     invitees.map((m) => m.getProject(projectId))

@@ -41,7 +41,6 @@ import { LocalPeers } from './local-peers.js'
 import { InviteApi } from './invite-api.js'
 import { LocalDiscovery } from './discovery/local-discovery.js'
 import { Roles } from './roles.js'
-import NoiseSecretStream from '@hyperswarm/secret-stream'
 import { Logger } from './logger.js'
 import {
   kSyncState,
@@ -49,6 +48,7 @@ import {
   kRescindFullStopRequest,
 } from './sync/sync-api.js'
 /** @import { ProjectSettingsValue as ProjectValue } from '@comapeo/schema' */
+/** @import NoiseSecretStream from '@hyperswarm/secret-stream' */
 /** @import { SetNonNullable } from 'type-fest' */
 /** @import { CoreStorage, Namespace } from './types.js' */
 /** @import { DeviceInfoParam } from './schema/client.js' */
@@ -68,7 +68,6 @@ const BLOBS_PREFIX = 'blobs'
 const ICONS_PREFIX = 'icons'
 
 export const kRPC = Symbol('rpc')
-export const kManagerReplicate = Symbol('replicate manager')
 
 /**
  * @typedef {Omit<import('./local-peers.js').PeerInfo, 'protomux'>} PublicPeerInfo
@@ -206,22 +205,6 @@ export class MapeoManager extends TypedEmitter {
 
   get deviceId() {
     return this.#deviceId
-  }
-
-  /**
-   * Create a Mapeo replication stream. This replication connects the Mapeo RPC
-   * channel and allows invites. All active projects will sync automatically to
-   * this replication stream. Only use for local (trusted) connections, because
-   * the RPC channel key is public. To sync a specific project without
-   * connecting RPC, use project[kProjectReplication].
-   *
-   * @param {boolean} isInitiator
-   */
-  [kManagerReplicate](isInitiator) {
-    const noiseStream = new NoiseSecretStream(isInitiator, undefined, {
-      keyPair: this.#keyManager.getIdentityKeypair(),
-    })
-    return this.#replicate(noiseStream)
   }
 
   /**

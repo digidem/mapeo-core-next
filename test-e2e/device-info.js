@@ -151,7 +151,7 @@ test('device info written to projects', async (t) => {
 
 test('device info sent to peers', async (t) => {
   const managers = await createManagers(3, t)
-  const disconnectPeers = connectPeers(managers, { discovery: true })
+  const disconnectPeers = connectPeers(managers)
   t.after(disconnectPeers)
   await waitForPeers(managers, { waitForDeviceInfo: true })
 

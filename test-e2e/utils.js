@@ -10,7 +10,7 @@ import * as v8 from 'node:v8'
 import { pEvent } from 'p-event'
 
 import { MapeoManager, roles } from '../src/index.js'
-import { kManagerReplicate, kRPC } from '../src/mapeo-manager.js'
+import { kRPC } from '../src/mapeo-manager.js'
 import { generate } from '@mapeo/mock-data'
 import { valueOf } from '../src/utils.js'
 import { randomBytes, randomInt } from 'node:crypto'
@@ -27,50 +27,28 @@ const clientMigrationsFolder = new URL('../drizzle/client', import.meta.url)
 
 /**
  * @param {readonly MapeoManager[]} managers
- * @returns {() => void}
+ * @returns {() => Promise<void>}
  */
-export function connectPeers(managers, { discovery = true } = {}) {
-  if (discovery) {
-    for (const manager of managers) {
-      manager.startLocalPeerDiscoveryServer().then(({ name, port }) => {
-        for (const otherManager of managers) {
-          if (otherManager === manager) continue
-          otherManager.connectLocalPeer({ address: '127.0.0.1', name, port })
-        }
-      })
-    }
-    return () =>
-      Promise.all(
-        managers.map((manager) =>
-          manager.stopLocalPeerDiscoveryServer({ force: true })
-        )
+export function connectPeers(managers) {
+  let requestedDisconnect = false
+
+  for (const manager of managers) {
+    manager.startLocalPeerDiscoveryServer().then(({ name, port }) => {
+      if (requestedDisconnect) return
+      for (const otherManager of managers) {
+        if (otherManager === manager) continue
+        otherManager.connectLocalPeer({ address: '127.0.0.1', name, port })
+      }
+    })
+  }
+
+  return async () => {
+    requestedDisconnect = true
+    await Promise.all(
+      managers.map((manager) =>
+        manager.stopLocalPeerDiscoveryServer({ force: true })
       )
-  } else {
-    /** @type {import('../src/types.js').ReplicationStream[]} */
-    const replicationStreams = []
-    for (let i = 0; i < managers.length; i++) {
-      for (let j = i + 1; j < managers.length; j++) {
-        const r1 = managers[i][kManagerReplicate](true)
-        const r2 = managers[j][kManagerReplicate](false)
-        replicationStreams.push(r1, r2)
-        r1.pipe(r2).pipe(r1)
-      }
-    }
-    return function destroy() {
-      const promises = []
-      for (const stream of replicationStreams) {
-        promises.push(
-          /** @type {Promise<void>} */
-          (
-            new Promise((res) => {
-              stream.on('close', res)
-              stream.destroy()
-            })
-          )
-        )
-      }
-      return Promise.all(promises)
-    }
+    )
   }
 }
 
