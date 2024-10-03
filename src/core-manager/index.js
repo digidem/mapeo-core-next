@@ -35,12 +35,9 @@ export class CoreManager extends TypedEmitter {
   #coreIndex
   /** @type {Core} */
   #creatorCore
-  #projectKey
   #queries
   #encryptionKeys
   #projectExtension
-  /** @type {'opened' | 'closing' | 'closed'} */
-  #state = 'opened'
   #ready
   #haveExtension
   #deviceId
@@ -86,7 +83,6 @@ export class CoreManager extends TypedEmitter {
     this.#l = Logger.create('coreManager', logger)
     const primaryKey = keyManager.getDerivedKey('primaryKey', projectKey)
     this.#deviceId = keyManager.getIdentityKeypair().publicKey.toString('hex')
-    this.#projectKey = projectKey
     this.#encryptionKeys = encryptionKeys
     this.#autoDownload = autoDownload
 
@@ -238,13 +234,11 @@ export class CoreManager extends TypedEmitter {
    * TODO: gracefully close replication streams
    */
   async close() {
-    this.#state = 'closing'
     const promises = []
     for (const { core } of this.#coreIndex) {
       promises.push(core.close())
     }
     await Promise.all(promises)
-    this.#state = 'closed'
   }
 
   /**
