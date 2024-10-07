@@ -152,7 +152,7 @@
     "yazl": "^2.5.1"
   },
   "dependencies": {
-    "@comapeo/schema": "1.0.0",
+    "@comapeo/schema": "file:comapeo-schema-1.0.0.tgz",
     "@digidem/types": "^2.3.0",
     "@electron/asar": "^3.2.8",
     "@fastify/error": "^3.4.1",

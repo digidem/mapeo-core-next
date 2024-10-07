@@ -19,11 +19,12 @@ import { setTimeout as delay } from 'timers/promises'
  *   MapeoDoc,
  *   ObservationValue,
  *   PresetValue,
+ *   RemoteDetectionAlertValue,
  *   TrackValue,
  * } from '@comapeo/schema' */
 /** @import { MapeoProject } from '../src/mapeo-project.js' */
 
-/** @satisfies {Array<import('@comapeo/schema').MapeoValue>} */
+/** @type {Array<FieldValue | ObservationValue | PresetValue | RemoteDetectionAlertValue | TrackValue>} */
 const fixtures = [
   {
     schemaName: 'observation',
@@ -61,6 +62,17 @@ const fixtures = [
     tags: {},
     locations: Array.from({ length: 10 }, trackPositionFixture),
   },
+  {
+    schemaName: 'remoteDetectionAlert',
+    detectionDateStart: new Date().toISOString(),
+    detectionDateEnd: new Date().toISOString(),
+    sourceId: randomBytes(32).toString('hex'),
+    metadata: { alert_type: 'fire' },
+    geometry: {
+      type: 'Point',
+      coordinates: [-3, 37],
+    },
+  },
 ]
 
 /**
@@ -81,7 +93,7 @@ const fixtures = [
  * [0]: https://www.typescriptlang.org/play/?#code/JYOwLgpgTgZghgYwgAgGIHt3IN4ChnIyYBcyIArgLYBG0A3LgL666iSyIoBCcUO+yar1IUa9JiwToQAZzDIANugDmy6MgC8-AkXSkAPABVkEAB6QQAExlpMAPgAUANzgLyEUoYCUmu8imy6AoQAHRKys6u7iG6XgA0AkJQBsZmFtbIPFCOLm4eyN6+-tIyQaHhkXkhSfFMDLgBcsjoAA5gwCWayADaAES6vXHIvUm9ALrIcDaNYAxEfA4zzW0dIM0wy+0lPngES+jUAFakGFgAPpm8Xa1baxr3wwPIAPw4hCTIAIzIjMik2IJhMgAEw-BgEcJqKDdG6rMYOA6HLwMRhAA
  *
  * @param {MapeoProject} project
- * @param {FieldValue | ObservationValue | PresetValue | TrackValue} value
+ * @param {FieldValue | ObservationValue | PresetValue | TrackValue | RemoteDetectionAlertValue} value
  * @returns {Promise<MapeoDoc>}
  */
 function create(project, value) {
@@ -91,6 +103,8 @@ function create(project, value) {
     case 'observation':
       return project[value.schemaName].create(value)
     case 'preset':
+      return project[value.schemaName].create(value)
+    case 'remoteDetectionAlert':
       return project[value.schemaName].create(value)
     case 'track':
       return project[value.schemaName].create(value)
@@ -103,7 +117,7 @@ function create(project, value) {
  * Create a bunch of docs with mocked data. See above for why this function exists.
  *
  * @param {MapeoProject} project
- * @param {'field' | 'observation' | 'preset' | 'track'} schemaName
+ * @param {'field' | 'observation' | 'preset' | 'track' | 'remoteDetectionAlert'} schemaName
  * @param {number} count
  * @returns {Promise<MapeoDoc[]>}
  */
@@ -127,6 +141,25 @@ function createWithMockData(project, schemaName, count) {
           project[schemaName].create(valueOf(doc))
         )
       )
+    case 'remoteDetectionAlert':
+      // TODO: Add support for remoteDetectionAlert in mapeo-mock-data
+      return Promise.all(
+        Array(count)
+          .fill(null)
+          .map(() =>
+            project[schemaName].create({
+              schemaName: 'remoteDetectionAlert',
+              detectionDateStart: new Date().toISOString(),
+              detectionDateEnd: new Date().toISOString(),
+              sourceId: randomBytes(32).toString('hex'),
+              metadata: { alert_type: 'fire' },
+              geometry: {
+                type: 'Point',
+                coordinates: [-3, 37],
+              },
+            })
+          )
+      )
     case 'track':
       return Promise.all(
         generate(schemaName, { count }).map((doc) =>
@@ -143,7 +176,7 @@ function createWithMockData(project, schemaName, count) {
  *
  * @param {MapeoProject} project
  * @param {string} versionId
- * @param {FieldValue | ObservationValue | PresetValue | TrackValue} value
+ * @param {FieldValue | ObservationValue | PresetValue | TrackValue | RemoteDetectionAlertValue} value
  * @returns {Promise<MapeoDoc>}
  */
 function update(project, versionId, value) {
@@ -153,6 +186,8 @@ function update(project, versionId, value) {
     case 'observation':
       return project[value.schemaName].update(versionId, value)
     case 'preset':
+      return project[value.schemaName].update(versionId, value)
+    case 'remoteDetectionAlert':
       return project[value.schemaName].update(versionId, value)
     case 'track':
       return project[value.schemaName].update(versionId, value)
@@ -191,6 +226,8 @@ function getUpdateFixture(value) {
         ...value,
         label: randomBytes(10).toString('hex'),
       }
+    case 'remoteDetectionAlert':
+      return { ...value }
     case 'track':
       return {
         ...value,
