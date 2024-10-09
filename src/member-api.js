@@ -1,4 +1,6 @@
+import * as b4a from 'b4a'
 import * as crypto from 'node:crypto'
+import WebSocket from 'ws'
 import { TypedEmitter } from 'tiny-typed-emitter'
 import { pEvent } from 'p-event'
 import { InviteResponse_Decision } from './generated/rpc.js'
@@ -8,11 +10,15 @@ import {
   ExhaustivenessError,
   projectKeyToId,
   projectKeyToProjectInviteId,
+  projectKeyToPublicId,
 } from './utils.js'
 import { keyBy } from './lib/key-by.js'
 import { abortSignalAny } from './lib/ponyfills.js'
 import timingSafeEqual from './lib/timing-safe-equal.js'
-import { ROLES, isRoleIdForNewInvite } from './roles.js'
+import { isHostnameIpAddress } from './lib/is-hostname-ip-address.js'
+import { MEMBER_ROLE_ID, ROLES, isRoleIdForNewInvite } from './roles.js'
+import { wsCoreReplicator } from './server/ws-core-replicator.js'
+import { once } from 'node:events'
 /**
  * @import {
  *   DeviceInfo,
@@ -26,6 +32,7 @@ import { ROLES, isRoleIdForNewInvite } from './roles.js'
 /** @import { DataStore } from './datastore/index.js' */
 /** @import { deviceInfoTable } from './schema/project.js' */
 /** @import { projectSettingsTable } from './schema/client.js' */
+/** @import { ReplicationStream } from './types.js' */
 
 /** @typedef {DataType<DataStore<'config'>, typeof deviceInfoTable, "deviceInfo", DeviceInfo, DeviceInfoValue>} DeviceInfoDataType */
 /** @typedef {DataType<DataStore<'config'>, typeof projectSettingsTable, "projectSettings", ProjectSettings, ProjectSettingsValue>} ProjectDataType */
@@ -36,6 +43,8 @@ import { ROLES, isRoleIdForNewInvite } from './roles.js'
  * @prop {DeviceInfo['name']} [name]
  * @prop {DeviceInfo['deviceType']} [deviceType]
  * @prop {DeviceInfo['createdAt']} [joinedAt]
+ * @prop {object} [selfHostedServerDetails]
+ * @prop {string} selfHostedServerDetails.baseUrl
  */
 
 export class MemberApi extends TypedEmitter {
@@ -45,6 +54,8 @@ export class MemberApi extends TypedEmitter {
   #encryptionKeys
   #projectKey
   #rpc
+  #getReplicationStream
+  #waitForInitialSyncWithPeer
   #dataTypes
 
   /** @type {Map<string, { abortController: AbortController }>} */
@@ -58,6 +69,8 @@ export class MemberApi extends TypedEmitter {
    * @param {import('./generated/keys.js').EncryptionKeys} opts.encryptionKeys
    * @param {Buffer} opts.projectKey
    * @param {import('./local-peers.js').LocalPeers} opts.rpc
+   * @param {() => ReplicationStream} opts.getReplicationStream
+   * @param {(deviceId: string) => Promise<void>} opts.waitForInitialSyncWithPeer
    * @param {Object} opts.dataTypes
    * @param {Pick<DeviceInfoDataType, 'getByDocId' | 'getMany'>} opts.dataTypes.deviceInfo
    * @param {Pick<ProjectDataType, 'getByDocId'>} opts.dataTypes.project
@@ -69,6 +82,8 @@ export class MemberApi extends TypedEmitter {
     encryptionKeys,
     projectKey,
     rpc,
+    getReplicationStream,
+    waitForInitialSyncWithPeer,
     dataTypes,
   }) {
     super()
@@ -78,6 +93,8 @@ export class MemberApi extends TypedEmitter {
     this.#encryptionKeys = encryptionKeys
     this.#projectKey = projectKey
     this.#rpc = rpc
+    this.#getReplicationStream = getReplicationStream
+    this.#waitForInitialSyncWithPeer = waitForInitialSyncWithPeer
     this.#dataTypes = dataTypes
   }
 
@@ -246,6 +263,127 @@ export class MemberApi extends TypedEmitter {
   }
 
   /**
+   * Add a server peer.
+   *
+   * @param {string} baseUrl
+   * @param {object} [options]
+   * @param {boolean} [options.dangerouslyAllowInsecureConnections]
+   * @returns {Promise<void>}
+   */
+  async addServerPeer(
+    baseUrl,
+    { dangerouslyAllowInsecureConnections = false } = {}
+  ) {
+    assert(
+      isValidServerBaseUrl(baseUrl, { dangerouslyAllowInsecureConnections }),
+      'Base URL is invalid'
+    )
+
+    const { serverDeviceId } = await this.#addServerToProject(baseUrl)
+
+    const roleId = MEMBER_ROLE_ID
+    await this.#roles.assignRole(serverDeviceId, roleId)
+
+    await this.#waitForInitialSyncWithServer({
+      baseUrl,
+      serverDeviceId,
+      dangerouslyAllowInsecureConnections,
+    })
+  }
+
+  /**
+   * @param {string} baseUrl Server base URL. Should already be validated.
+   * @returns {Promise<{ serverDeviceId: string }>}
+   */
+  async #addServerToProject(baseUrl) {
+    const requestUrl = new URL('projects', baseUrl)
+    const requestBody = {
+      projectKey: encodeBufferForServer(this.#projectKey),
+      encryptionKeys: {
+        auth: encodeBufferForServer(this.#encryptionKeys.auth),
+        data: encodeBufferForServer(this.#encryptionKeys.data),
+        config: encodeBufferForServer(this.#encryptionKeys.config),
+        blobIndex: encodeBufferForServer(this.#encryptionKeys.blobIndex),
+        blob: encodeBufferForServer(this.#encryptionKeys.blob),
+      },
+    }
+
+    /** @type {Response} */ let response
+    try {
+      response = await fetch(requestUrl, {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+        headers: { 'Content-Type': 'application/json' },
+      })
+    } catch (err) {
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? err.message
+          : String(err)
+      throw new Error(
+        `Failed to add server peer due to network error: ${message}`
+      )
+    }
+
+    if (response.status !== 200) {
+      // TODO: Better error handling here
+      throw new Error(
+        `Failed to add server peer due to HTTP status code ${response.status}`
+      )
+    }
+
+    try {
+      const responseBody = await response.json()
+      assert(
+        responseBody &&
+          typeof responseBody === 'object' &&
+          'data' in responseBody &&
+          responseBody.data &&
+          typeof responseBody.data === 'object' &&
+          'deviceId' in responseBody.data &&
+          typeof responseBody.data.deviceId === 'string',
+        'Response body is valid'
+      )
+      return { serverDeviceId: responseBody.data.deviceId }
+    } catch (err) {
+      throw new Error(
+        "Failed to add server peer because we couldn't parse the response"
+      )
+    }
+  }
+
+  /**
+   * @param {object} options
+   * @param {string} options.baseUrl
+   * @param {string} options.serverDeviceId
+   * @param {boolean} options.dangerouslyAllowInsecureConnections
+   * @returns {Promise<void>}
+   */
+  async #waitForInitialSyncWithServer({
+    baseUrl,
+    serverDeviceId,
+    dangerouslyAllowInsecureConnections,
+  }) {
+    const projectPublicId = projectKeyToPublicId(this.#projectKey)
+    const websocketUrl = new URL('sync/' + projectPublicId, baseUrl)
+    websocketUrl.protocol =
+      dangerouslyAllowInsecureConnections && websocketUrl.protocol === 'http:'
+        ? 'ws:'
+        : 'wss:'
+
+    const websocket = new WebSocket(websocketUrl)
+    websocket.on('error', noop)
+    const replicationStream = this.#getReplicationStream()
+    wsCoreReplicator(websocket, replicationStream)
+
+    await this.#waitForInitialSyncWithPeer(serverDeviceId)
+
+    websocket.close()
+    await once(websocket, 'close')
+    websocket.off('error', noop)
+  }
+
+  /**
    * @param {string} deviceId
    * @returns {Promise<MemberInfo>}
    */
@@ -304,6 +442,8 @@ export class MemberApi extends TypedEmitter {
           memberInfo.name = deviceInfo?.name
           memberInfo.deviceType = deviceInfo?.deviceType
           memberInfo.joinedAt = deviceInfo?.createdAt
+          memberInfo.selfHostedServerDetails =
+            deviceInfo?.selfHostedServerDetails
         } catch (err) {
           // Attempting to get someone else may throw because sync hasn't occurred or completed
           // Only throw if attempting to get themself since the relevant information should be available
@@ -323,4 +463,53 @@ export class MemberApi extends TypedEmitter {
   async assignRole(deviceId, roleId) {
     return this.#roles.assignRole(deviceId, roleId)
   }
+}
+
+/**
+ * @param {string} baseUrl
+ * @param {object} options
+ * @param {boolean} options.dangerouslyAllowInsecureConnections
+ * @returns {boolean}
+ */
+function isValidServerBaseUrl(
+  baseUrl,
+  { dangerouslyAllowInsecureConnections }
+) {
+  if (baseUrl.length > 2000) return false
+
+  /** @type {URL} */ let url
+  try {
+    url = new URL(baseUrl)
+  } catch (_err) {
+    return false
+  }
+
+  const isProtocolValid =
+    url.protocol === 'https:' ||
+    (dangerouslyAllowInsecureConnections && url.protocol === 'http:')
+  if (!isProtocolValid) return false
+
+  if (url.username) return false
+  if (url.password) return false
+  if (url.search) return false
+  if (url.hash) return false
+
+  if (
+    !isHostnameIpAddress(url.hostname) &&
+    !dangerouslyAllowInsecureConnections
+  ) {
+    const parts = url.hostname.split('.')
+    const isDomainValid = parts.length >= 2 && parts.every(Boolean)
+    if (!isDomainValid) return false
+  }
+
+  return true
+}
+
+/**
+ * @param {undefined | Uint8Array} buffer
+ * @returns {undefined | string}
+ */
+function encodeBufferForServer(buffer) {
+  return buffer ? b4a.toString(buffer, 'hex') : undefined
 }

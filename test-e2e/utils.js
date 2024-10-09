@@ -188,6 +188,24 @@ export async function createManagers(
 }
 
 /**
+ * TODO: DRY this out with the below
+ * @param {string} seed
+ * @param {Partial<ConstructorParameters<typeof MapeoManager>[0]>} [overrides]
+ * @returns {ConstructorParameters<typeof MapeoManager>[0]}
+ */
+export function getManagerOptions(seed, overrides = {}) {
+  return {
+    rootKey: getRootKey(seed),
+    projectMigrationsFolder,
+    clientMigrationsFolder,
+    dbFolder: ':memory:',
+    coreStorage: () => new RAM(),
+    fastify: Fastify(),
+    ...overrides,
+  }
+}
+
+/**
  * @param {string} seed
  * @param {import('node:test').TestContext} t
  * @param {Partial<ConstructorParameters<typeof MapeoManager>[0]>} [overrides]

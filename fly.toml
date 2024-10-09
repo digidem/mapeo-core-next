@@ -1,0 +1,36 @@
+# fly.toml app configuration file generated for comapeo-cloud on 2024-10-07T20:59:21+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'comapeo-cloud'
+primary_region = 'iad'
+
+[env]
+  STORAGE_DIR = '/data'
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  max_machines_running = 1
+  processes = ['app']
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/healthcheck"
+
+[[vm]]
+  size = 'shared-cpu-1x'
+
+[mounts]
+  source = "myapp_data"
+  destination = "/data"
+  snapshot_retention = 14

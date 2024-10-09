@@ -152,6 +152,7 @@ export class PeerSyncController {
 
     if (didUpdate.auth) {
       try {
+        this.#log('reading role for %h', this.peerId)
         const cap = await this.#roles.getRole(this.peerId)
         this.#syncCapability = cap.sync
       } catch (e) {

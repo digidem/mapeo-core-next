@@ -49,7 +49,7 @@ export const kDataStore = Symbol('dataStore')
 
 /**
  * @template {DataStore} TDataStore
- * @template {TDataStore['schemas'][number]} TSchemaName
+ * @template {Exclude<TDataStore['schemas'][number], 'remoteDetectionAlert'>} TSchemaName TODO: Remove this exclusion
  * @template {MapeoDocTablesMap[TSchemaName]} TTable
  * @template {Exclude<MapeoDocMap[TSchemaName], { schemaName: 'coreOwnership' }>} TDoc
  * @template {Exclude<MapeoValueMap[TSchemaName], { schemaName: 'coreOwnership' }>} TValue

@@ -577,7 +577,7 @@ export class MapeoManager extends TypedEmitter {
    * downloaded their proof of project membership and the project config.
    *
    * @param {Pick<import('./generated/rpc.js').ProjectJoinDetails, 'projectKey' | 'encryptionKeys'> & { projectName: string }} projectJoinDetails
-   * @param {{ waitForSync?: boolean }} [opts] For internal use in tests, set opts.waitForSync = false to not wait for sync during addProject()
+   * @param {{ waitForSync?: boolean }} [opts] Set opts.waitForSync = false to not wait for sync during addProject()
    * @returns {Promise<string>}
    */
   addProject = async (
@@ -731,9 +731,7 @@ export class MapeoManager extends TypedEmitter {
   }
 
   /**
-   * @typedef {Exclude<
-   * import('./schema/client.js').DeviceInfoParam['deviceType'],
-   * 'selfHostedServer'>} RPCDeviceType
+   * @typedef {import('./schema/client.js').DeviceInfoParam['deviceType']} RPCDeviceType
    */
 
   /**
@@ -760,13 +758,19 @@ export class MapeoManager extends TypedEmitter {
       })
     )
 
-    await Promise.all(
-      this.#localPeers.peers
-        .filter(({ status }) => status === 'connected')
-        .map((peer) =>
-          this.#localPeers.sendDeviceInfo(peer.deviceId, deviceInfo)
-        )
-    )
+    if (deviceInfo.deviceType !== 'selfHostedServer') {
+      await Promise.all(
+        this.#localPeers.peers
+          .filter(({ status }) => status === 'connected')
+          .map((peer) =>
+            this.#localPeers.sendDeviceInfo(
+              peer.deviceId,
+              // TODO TypeScript isn't smart enough to know that deviceInfo is okay here?
+              /** @type {any} */ (deviceInfo)
+            )
+          )
+      )
+    }
 
     this.#l.log('set device info %o', deviceInfo)
   }

@@ -82,6 +82,7 @@ export class IndexWriter {
         continue
       }
       // Don't have an indexer for this type - silently ignore
+      if (doc.schemaName === 'remoteDetectionAlert') continue // TODO: Remove this line when remoteDetectionAlert is supported
       if (!this.#indexers.has(doc.schemaName)) continue
       if (queued[doc.schemaName]) {
         queued[doc.schemaName].push(doc)

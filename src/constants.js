@@ -19,7 +19,7 @@ export const DATA_NAMESPACES = NAMESPACES.filter(
 )
 
 export const NAMESPACE_SCHEMAS = /** @type {const} */ ({
-  data: ['observation', 'track'],
+  data: ['observation', 'track', 'remoteDetectionAlert'],
   config: [
     'translation',
     'preset',

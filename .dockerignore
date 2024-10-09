@@ -1,0 +1,16 @@
+# flyctl launch added from .gitignore
+**/.DS_Store
+**/node_modules
+**/coverage
+**/.tmp
+**/tmp
+**/proto/build
+dist
+!drizzle/**/*.sql
+**/.eslintcache
+**/docs/api/html/*
+**/test/fixtures/config/*.zip
+
+# flyctl launch added from .husky/_/.gitignore
+.husky/_/**/*
+fly.toml

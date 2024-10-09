@@ -10,7 +10,13 @@ import {
   MEMBER_ROLE_ID,
   NO_ROLE,
 } from '../src/roles.js'
-import { connectPeers, createManagers, invite, waitForSync } from './utils.js'
+import {
+  connectPeers,
+  createManagers,
+  invite,
+  removeUndefinedFields,
+  waitForSync,
+} from './utils.js'
 import { kDataTypes } from '../src/mapeo-project.js'
 
 test('getting yourself after creating project', async (t) => {
@@ -30,7 +36,7 @@ test('getting yourself after creating project', async (t) => {
     'time of joined project is close to now'
   )
   assert.deepEqual(
-    me,
+    removeUndefinedFields(me),
     {
       deviceId: project.deviceId,
       deviceType: 'tablet',
@@ -45,7 +51,7 @@ test('getting yourself after creating project', async (t) => {
 
   assert.equal(members.length, 1)
   assert.deepEqual(
-    member,
+    removeUndefinedFields(member),
     {
       deviceId: project.deviceId,
       deviceType: 'tablet',
@@ -81,7 +87,7 @@ test('getting yourself after adding project (but not yet synced)', async (t) => 
   )
 
   assert.deepEqual(
-    me,
+    removeUndefinedFields(me),
     {
       deviceId: project.deviceId,
       deviceType: 'tablet',
@@ -96,7 +102,7 @@ test('getting yourself after adding project (but not yet synced)', async (t) => 
 
   assert.equal(members.length, 1)
   assert.deepEqual(
-    member,
+    removeUndefinedFields(member),
     {
       deviceId: project.deviceId,
       deviceType: 'tablet',
@@ -170,7 +176,7 @@ test('getting invited member after invite accepted', async (t) => {
     )
 
     assert.deepEqual(
-      invitedMemberWithoutJoinedAt,
+      removeUndefinedFields(invitedMemberWithoutJoinedAt),
       {
         deviceId: invitee.deviceId,
         deviceType: 'device_type_unspecified',
