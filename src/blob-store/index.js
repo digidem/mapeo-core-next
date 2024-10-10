@@ -4,6 +4,7 @@ import util from 'node:util'
 import { discoveryKey } from 'hypercore-crypto'
 import { TypedEmitter } from 'tiny-typed-emitter'
 import { LiveDownload } from './live-download.js'
+/** @import { JsonObject } from 'type-fest' */
 /** @import { BlobId } from '../types.js' */
 
 /** @typedef {TypedEmitter<{ 'add-drive': (drive: import('hyperdrive')) => void }>} InternalDriveEmitter */
@@ -198,7 +199,7 @@ export class BlobStore {
   /**
    * @param {Omit<BlobId, 'driveId'>} blobId
    * @param {object} [options]
-   * @param {{mimeType: string}} [options.metadata] Metadata to store with the blob
+   * @param {JsonObject} [options.metadata] Metadata to store with the blob
    */
   createWriteStream({ type, variant, name }, options) {
     const path = makePath({ type, variant, name })

@@ -153,6 +153,32 @@ test('blobStore.createWriteStream(blobId) and blobStore.createReadStream(blobId)
   assert.deepEqual(bndlbuf, diskbuf, 'should be equal')
 })
 
+test('blobStore.entry includes metadata if present', async () => {
+  const { blobStore } = testenv()
+
+  const blobId = /** @type {const} */ ({
+    type: 'photo',
+    variant: 'original',
+    name: 'test-file',
+  })
+  const ws = blobStore.createWriteStream(blobId, {
+    metadata: {
+      foo: 'bar',
+      baz: [1, 2, 3],
+    },
+  })
+  await pipeline(fs.createReadStream(new URL(import.meta.url)), ws)
+
+  const entry = await blobStore.entry({
+    ...blobId,
+    driveId: ws.driveId,
+  })
+  assert.deepEqual(entry?.value.metadata, {
+    foo: 'bar',
+    baz: [1, 2, 3],
+  })
+})
+
 test('blobStore.createReadStream should not wait', async () => {
   const { blobStore } = testenv()
   const expected = await readFile(new URL(import.meta.url))
